@@ -8,8 +8,8 @@ TIMESTAMP=$(date +%Y%m%d_%H%M%S)
 APP_NAME="digital-id-admin" # ឈ្មោះនៅក្នុង pm2 (មើលតាម pm2 list)
 
 # ព័ត៌មាន Telegram
-TG_TOKEN="YOUR_BOT_TOKEN_HERE"
-TG_CHAT_ID="YOUR_CHAT_ID_HERE"
+TG_TOKEN="7722241317:AAGiXOJlpUC2AdVG8dfF2agJ3gEfJwOu9FI"
+TG_CHAT_ID="39291314"
 
 mkdir -p $BACKUP_PATH
 
