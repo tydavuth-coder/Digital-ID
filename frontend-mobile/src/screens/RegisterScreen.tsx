@@ -1,12 +1,12 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { 
   StyleSheet, Text, View, TouchableOpacity, SafeAreaView, 
-  StatusBar, Dimensions, Platform, ActivityIndicator, Switch, Alert 
+  StatusBar, Dimensions, Platform, ActivityIndicator, Switch, Alert, Image 
 } from 'react-native';
 import { CameraView, CameraType, useCameraPermissions } from 'expo-camera';
 import { Ionicons, MaterialIcons, MaterialCommunityIcons } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';
-import { api } from '../api/client'; // Import API Client
+import { api } from '../api/client'; // Ensure this is correctly imported
 
 const { width } = Dimensions.get('window');
 
@@ -22,16 +22,11 @@ interface RegisterProps {
   onFinish: (data: any) => void;
 }
 
-// Mock Data (សម្រាប់តេស្ត OCR)
-const MOCK_EXTRACTED_DATA = {
-  nameKh: "ចាន់ សោភា",
-  nameEn: "CHAN SOPHEA",
-  gender: "F",
-  idNumber: "123456789",
-  dob: "01-01-1995",
-  pob: "Phnom Penh",
-  address: "Phnom Penh, Cambodia",
-  expiryDate: "01-01-2030"
+const MOCK_DATA_FROM_BACKEND = {
+  nameEn: "SOKHA DARA",
+  id: "123-999-888",
+  validUntil: "Dec 2030",
+  avatar: "https://i.pravatar.cc/150?img=12"
 };
 
 export default function RegisterScreen({ onBack, onFinish }: RegisterProps) {
@@ -48,56 +43,80 @@ export default function RegisterScreen({ onBack, onFinish }: RegisterProps) {
   const [faceIDEnabled, setFaceIDEnabled] = useState(true);
   const [extractedData, setExtractedData] = useState<any>(null);
 
+  // --- AUTOMATED CAMERA SWITCHING ---
   useEffect(() => {
     if (step === 'front' || step === 'back') {
       setFacing('back');
-      setScreenFlash(false);
+      setFlash(false);
     } else if (step === 'selfie') {
-      setTimeout(() => setFacing('front'), 100);
+      setFacing('front');
       setFlash(false);
     }
   }, [step]);
 
+  // --- AUTOMATED PROCESSING ---
   useEffect(() => {
     let timer: NodeJS.Timeout;
-    if (step === 'processing_front') timer = setTimeout(() => setStep('back'), 2000);
-    else if (step === 'processing_back') timer = setTimeout(() => setStep('selfie'), 2000);
-    else if (step === 'processing_selfie') uploadDataToBackend();
+
+    if (step === 'processing_front') {
+      timer = setTimeout(() => setStep('back'), 2000);
+    } 
+    else if (step === 'processing_back') {
+      timer = setTimeout(() => setStep('selfie'), 2000);
+    } 
+    else if (step === 'processing_selfie') {
+      uploadDataToBackend();
+    }
+
     return () => clearTimeout(timer);
   }, [step]);
 
-  // ✅ ហៅទៅ Backend API (kyc.submit)
   const uploadDataToBackend = async () => {
     try {
-        console.log("📤 Sending data to Backend...");
+        console.log("📤 Uploading data to Backend...");
         
-        // ប្រើ Mock Data សិន (ព្រោះមិនទាន់មាន OCR ពិត)
-        // ក្នុង Production, ត្រូវបញ្ជូនរូបភាពជា Base64
+        // Mock Data payload (In real app, send Base64 images)
         const payload = {
-            ...MOCK_EXTRACTED_DATA,
-            gender: "female", // Match enum
-            frontImage: "base64_placeholder",
-            backImage: "base64_placeholder",
-            selfieImage: "base64_placeholder"
+            nameEn: "New User",
+            idNumber: "N/A", // Will be extracted by backend in real OCR
+            frontImage: "placeholder_base64",
+            backImage: "placeholder_base64",
+            selfieImage: "placeholder_base64"
         };
 
-        // Call tRPC Endpoint
+        // ✅ CALL API (Public Procedure)
         await api.post('/trpc/kyc.submit', { json: payload });
-
-        setExtractedData(MOCK_EXTRACTED_DATA);
-        setStep('pin_setup');
+        
+        // Success
+        setTimeout(() => {
+            setExtractedData(MOCK_DATA_FROM_BACKEND);
+            setStep('pin_setup');
+        }, 1500);
 
     } catch (error) {
-        console.error(error);
-        // Fallback for demo if backend fails
-        setExtractedData(MOCK_EXTRACTED_DATA);
+        console.error("Upload Failed:", error);
+        // Fallback for demo if offline
+        setExtractedData(MOCK_DATA_FROM_BACKEND);
         setStep('pin_setup');
+    }
+  };
+
+  // --- ACTIONS ---
+
+  const handleStepBack = () => {
+    if (step === 'front') onBack();
+    else if (step === 'back') setStep('front');
+    else if (step === 'selfie') setStep('back');
+    else if (step === 'pin_setup') setStep('selfie');
+    else if (step === 'pin_confirm') {
+        setStep('pin_setup');
+        setPin('');
     }
   };
 
   const handleCapture = async () => {
     if (step === 'selfie') {
-        setScreenFlash(true);
+        setScreenFlash(true); // Screen Flash Effect
         setTimeout(() => {
             setScreenFlash(false);
             setStep('processing_selfie');
@@ -109,8 +128,8 @@ export default function RegisterScreen({ onBack, onFinish }: RegisterProps) {
   };
 
   const toggleFlash = () => {
-    if (facing === 'front') setScreenFlash(!screenFlash);
-    else setFlash(!flash);
+    if (facing === 'front') setScreenFlash(!screenFlash); // Fake flash for selfie
+    else setFlash(!flash); // Real torch for back
   };
 
   const handlePinInput = (num: string) => {
@@ -142,17 +161,6 @@ export default function RegisterScreen({ onBack, onFinish }: RegisterProps) {
     setFacing(c => (c === 'back' ? 'front' : 'back'));
   };
 
-  const handleStepBack = () => {
-    if (step === 'front') onBack();
-    else if (step === 'back') setStep('front');
-    else if (step === 'selfie') setStep('back');
-    else if (step === 'pin_setup') setStep('selfie');
-    else if (step === 'pin_confirm') {
-        setStep('pin_setup');
-        setPin('');
-    }
-  };
-
   // --- RENDERERS ---
 
   if (step === 'pending_approval') {
@@ -167,7 +175,7 @@ export default function RegisterScreen({ onBack, onFinish }: RegisterProps) {
             <Text style={styles.pendingSubTitle}>Pending Approval</Text>
             <View style={styles.infoCard}>
                 <Text style={styles.infoText}>ឯកសាររបស់អ្នកត្រូវបានបញ្ជូនទៅកាន់ប្រព័ន្ធ។</Text>
-                <Text style={styles.infoTextId}>ID: {extractedData?.idNumber || '...'}</Text>
+                <Text style={styles.infoTextId}>ID: {extractedData?.id || '...'}</Text>
             </View>
             <TouchableOpacity style={styles.homeBtn} onPress={() => onFinish(extractedData)}>
                 <Text style={styles.homeBtnText}>ត្រឡប់ទៅទំព័រដើម</Text>
@@ -177,6 +185,7 @@ export default function RegisterScreen({ onBack, onFinish }: RegisterProps) {
     );
   }
 
+  // PIN UI
   if (step === 'pin_setup' || step === 'pin_confirm') {
     const isConfirm = step === 'pin_confirm';
     const currentPin = isConfirm ? confirmPin : pin;
@@ -195,7 +204,7 @@ export default function RegisterScreen({ onBack, onFinish }: RegisterProps) {
                 <MaterialIcons name={isConfirm ? "lock" : "lock-outline"} size={36} color="#2563EB" />
             </View>
             <Text style={styles.pinTitleMain}>{isConfirm ? "Confirm New PIN" : "Set Your PIN Code"}</Text>
-            <Text style={styles.pinSubtitle}>{isConfirm ? "Please re-enter to confirm." : "Create a 6-digit PIN to secure your digital identity."}</Text>
+            <Text style={styles.pinSubtitle}>Create a 6-digit PIN to secure your digital identity.</Text>
             <View style={styles.pinDotsRow}>
                 {[1, 2, 3, 4, 5, 6].map((i) => (
                 <View key={i} style={[styles.pinDotCircle, currentPin.length >= i ? styles.pinDotFilled : null]} />
@@ -238,6 +247,7 @@ export default function RegisterScreen({ onBack, onFinish }: RegisterProps) {
     );
   }
 
+  // CAMERA & PROCESSING
   if (!permission) return <View />;
   if (!permission.granted) {
     return (
@@ -305,6 +315,7 @@ export default function RegisterScreen({ onBack, onFinish }: RegisterProps) {
                 </View>
             ) : (
                 <View style={styles.cameraCard}>
+                    {/* ✅ FIXED: Key={facing} forces camera reload when switching */}
                     <CameraView
                         key={facing} 
                         ref={cameraRef}
