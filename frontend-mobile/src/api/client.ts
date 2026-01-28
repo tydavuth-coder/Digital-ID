@@ -1,34 +1,40 @@
 import axios from 'axios';
 import * as SecureStore from 'expo-secure-store';
 
-// ប្តូរទៅ Domain របស់អ្នក
-const API_URL = 'https://id.efimef.org/api'; 
+// ✅ ដូរ IP នេះទៅជា IP ពិតរបស់ Server អ្នក (បើប្រើ Emulator)
+// ឬប្រើ https://id.efimef.org/api បើ Server Online
+export const BASE_URL = 'https://id.efimef.org/api'; 
 
 export const api = axios.create({
-  baseURL: API_URL,
-  timeout: 10000, // 10 វិនាទី (បើលើសនេះ ចាត់ទុកថា Server ដាច់)
+  baseURL: BASE_URL,
+  timeout: 30000, // បង្កើនម៉ោងរង់ចាំ (Upload រូបអាចយូរ)
   headers: {
     'Content-Type': 'application/json',
   },
 });
 
-// Add Token to Request
+// Interceptor
 api.interceptors.request.use(async (config) => {
   const token = await SecureStore.getItemAsync('userToken');
+  
+  // ✅ កែសម្រួល៖ ដាក់ Token តែពេលមានប៉ុណ្ណោះ
   if (token) {
     config.headers.Authorization = `Bearer ${token}`;
   }
+  
   return config;
+}, (error) => {
+  return Promise.reject(error);
 });
 
-// Handle Response Errors Globally
+// Response Interceptor (Optional: Debugging)
 api.interceptors.response.use(
-  (response) => response,
-  (error) => {
-    if (!error.response) {
-      // Network Error (Server Down / No Internet)
+  response => response,
+  error => {
+    if (error.response) {
+      console.log('API Error:', error.response.status, error.response.data);
+    } else {
       console.log('Network Error:', error.message);
-      return Promise.reject(new Error("NETWORK_ERROR"));
     }
     return Promise.reject(error);
   }

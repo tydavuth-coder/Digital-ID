@@ -85,11 +85,90 @@ export const appRouter = router({
       ctx.res.clearCookie(COOKIE_NAME, { ...cookieOptions, maxAge: -1 });
       return { success: true } as const;
     }),
+
+    // ✅ PUBLIC KYC SUBMISSION (Accessible without login)
+    submitKYC: publicProcedure.input(z.object({
+      nameKh: z.string().optional(),
+      nameEn: z.string().optional(),
+      gender: z.enum(["male", "female", "other"]).optional(),
+      idNumber: z.string().optional(),
+      dob: z.string().optional(),
+      pob: z.string().optional(),
+      address: z.string().optional(),
+      expiryDate: z.string().optional(),
+      frontImage: z.string().optional(),
+      backImage: z.string().optional(),
+      selfieImage: z.string().optional(),
+    })).mutation(async ({ input }) => {
+      try {
+        const openId = `user_${nanoid(10)}`;
+        
+        // 1. Create User (Pending)
+        const createdUser = await db.upsertUser({
+            openId: openId,
+            name: input.nameEn,
+            email: `temp_${nanoid(5)}@digitalid.local` 
+        });
+        
+        // 2. Update Details
+        await db.updateUser(createdUser.id, {
+            nameKhmer: input.nameKh,
+            nameEnglish: input.nameEn,
+            nationalId: input.idNumber,
+            gender: input.gender as any,
+            address: input.address,
+            status: "pending",
+            kycStatus: "pending",
+            role: "user"
+        });
+
+        const newUserId = createdUser.id;
+
+        // 3. Insert Documents
+        if (input.frontImage && input.backImage && input.selfieImage) {
+            await db.createKycDocument({
+                userId: newUserId,
+                nidFrontUrl: input.frontImage,
+                nidBackUrl: input.backImage,
+                selfieUrl: input.selfieImage,
+            });
+        }
+
+        // 4. Log Activity
+        await db.createActivityLog({
+            userId: newUserId, 
+            username: input.nameEn || "New Applicant",
+            action: "Submitted KYC Registration",
+            actionType: "kyc_submit",
+            description: `New user application via Mobile App.`,
+        });
+
+        // 5. Notify Admins (WebSocket)
+        try {
+            const io = getIO();
+            io.to("admins").emit("kyc-submission", {
+                userId: newUserId,
+                userName: input.nameEn,
+                timestamp: new Date()
+            });
+        } catch (e) {
+            console.log("WebSocket notification warning:", e);
+        }
+        
+        return { success: true, userId: newUserId };
+
+      } catch (error) {
+        console.error("KYC Submit Error:", error);
+        throw new TRPCError({
+            code: 'INTERNAL_SERVER_ERROR',
+            message: 'Failed to submit KYC application'
+        });
+      }
+    }),
   }),
 
-  // ============= MOBILE APP SYNC (SCAN QR) =============
+  // ============= MOBILE APP SYNC (SCAN QR LOGIN) =============
   mobile: router({
-    // Endpoint for Mobile App to authorize a Dashboard session
     authorizeDashboard: protectedProcedure
       .input(z.object({
         socketId: z.string(), // The QR Code content
@@ -97,10 +176,10 @@ export const appRouter = router({
       }))
       .mutation(async ({ ctx, input }) => {
         try {
-          // 1. Generate a new session token for the Web Dashboard
+          // 1. Generate session token
           const webSessionToken = nanoid(64);
           
-          // 2. Save session to database (Active 24 hours)
+          // 2. Save session
           await db.createActiveSession({
              userId: ctx.user.id,
              sessionToken: webSessionToken,
@@ -109,7 +188,7 @@ export const appRouter = router({
              expiresAt: new Date(Date.now() + 24 * 60 * 60 * 1000), 
           });
 
-          // 3. Send success signal to the specific Web Browser via WebSocket
+          // 3. Send success signal via WebSocket
           emitDashboardLoginSuccess(input.socketId, {
             token: webSessionToken,
             user: {
@@ -121,7 +200,7 @@ export const appRouter = router({
             }
           });
 
-          // 4. Log the activity
+          // 4. Log activity
           await db.createActivityLog({
             userId: ctx.user.id,
             username: ctx.user.name || ctx.user.email || "User",
@@ -142,7 +221,7 @@ export const appRouter = router({
       }),
   }),
 
-  // ============= DASHBOARD =============
+  // ============= DASHBOARD STATISTICS =============
   dashboard: router({
     getStats: adminProcedure.query(async () => {
       return await db.getDashboardStats();
@@ -179,7 +258,6 @@ export const appRouter = router({
     })).mutation(async ({ input, ctx }) => {
       const updated = await db.updateUser(input.id, input.data);
       
-      // Log the action
       await db.createActivityLog({
         userId: ctx.user.id,
         username: ctx.user.name || ctx.user.email || "Admin",
@@ -196,7 +274,6 @@ export const appRouter = router({
     })).mutation(async ({ input, ctx }) => {
       const success = await db.deleteUser(input.id);
       
-      // Log the action
       await db.createActivityLog({
         userId: ctx.user.id,
         username: ctx.user.name || ctx.user.email || "Admin",
@@ -227,16 +304,13 @@ export const appRouter = router({
       
       for (const userData of input.users) {
         try {
-          // Create a temporary openId for imported users
           const tempOpenId = `imported_${nanoid(16)}`;
-          
           await db.upsertUser({
             openId: tempOpenId,
             name: userData.nameEnglish,
             email: userData.email,
           });
           
-          // Get the created user and update with full data
           const user = await db.getUserByOpenId(tempOpenId);
           if (user) {
             await db.updateUser(user.id, {
@@ -250,16 +324,13 @@ export const appRouter = router({
               status: userData.status || "pending",
             });
           }
-          
           successCount++;
         } catch (error) {
           failedCount++;
           errors.push(`Failed to import ${userData.email}: ${error}`);
-          console.error(`[User Import] Failed to import ${userData.email}:`, error);
         }
       }
       
-      // Log the action
       await db.createActivityLog({
         userId: ctx.user.id,
         username: ctx.user.name || ctx.user.email || "Admin",
@@ -272,90 +343,10 @@ export const appRouter = router({
     }),
   }),
 
-  // ============= KYC VERIFICATION =============
+  // ============= KYC VERIFICATION (ADMIN) =============
   kyc: router({
     getPending: adminProcedure.query(async () => {
       return await db.getPendingKycDocuments();
-    }),
-    
-    // ✅ NEW: Submit KYC from Mobile App (Public Procedure)
-    submit: publicProcedure.input(z.object({
-      nameKh: z.string().optional(),
-      nameEn: z.string().optional(),
-      gender: z.enum(["male", "female", "other"]).optional(),
-      idNumber: z.string().optional(),
-      dob: z.string().optional(),
-      pob: z.string().optional(),
-      address: z.string().optional(),
-      expiryDate: z.string().optional(),
-      frontImage: z.string().optional(),
-      backImage: z.string().optional(),
-      selfieImage: z.string().optional(),
-    })).mutation(async ({ input }) => {
-      try {
-        const openId = `user_${nanoid(10)}`;
-        
-        // 1. Create a new pending user
-        const createdUser = await db.upsertUser({
-            openId: openId,
-            name: input.nameEn,
-            email: `temp_${nanoid(5)}@digitalid.local` // Temporary email
-        });
-        
-        // 2. Update user details
-        await db.updateUser(createdUser.id, {
-            nameKhmer: input.nameKh,
-            nameEnglish: input.nameEn,
-            nationalId: input.idNumber,
-            gender: input.gender as any,
-            address: input.address,
-            status: "pending",
-            kycStatus: "pending",
-            role: "user"
-        });
-
-        const newUserId = createdUser.id;
-
-        // 3. Insert KYC Documents
-        if (input.frontImage && input.backImage && input.selfieImage) {
-            await db.createKycDocument({
-                userId: newUserId,
-                nidFrontUrl: input.frontImage, // In prod, this should be an S3 URL
-                nidBackUrl: input.backImage,
-                selfieUrl: input.selfieImage,
-            });
-        }
-
-        // 4. Log Activity
-        await db.createActivityLog({
-            userId: newUserId, 
-            username: input.nameEn || "New Applicant",
-            action: "Submitted KYC Registration",
-            actionType: "kyc_submit",
-            description: `New user application via Mobile App.`,
-        });
-
-        // 5. Notify Admins via WebSocket
-        try {
-            const io = getIO();
-            io.to("admins").emit("kyc-submission", {
-                userId: newUserId,
-                userName: input.nameEn,
-                timestamp: new Date()
-            });
-        } catch (e) {
-            console.log("WebSocket notification failed (minor issue):", e);
-        }
-        
-        return { success: true, userId: newUserId };
-
-      } catch (error) {
-        console.error("KYC Submit Error:", error);
-        throw new TRPCError({
-            code: 'INTERNAL_SERVER_ERROR',
-            message: 'Failed to submit KYC application'
-        });
-      }
     }),
     
     approve: adminProcedure.input(z.object({
@@ -363,7 +354,6 @@ export const appRouter = router({
     })).mutation(async ({ input, ctx }) => {
       const success = await db.updateKycStatus(input.id, "approved", ctx.user.id);
       
-      // Send email notification
       try {
         const kycDocs = await db.getPendingKycDocuments();
         const kycDoc = kycDocs.find(doc => doc.kycDoc.id === input.id);
@@ -374,7 +364,6 @@ export const appRouter = router({
         console.error('[KYC] Failed to send approval email:', error);
       }
       
-      // Log the action
       await db.createActivityLog({
         userId: ctx.user.id,
         username: ctx.user.name || ctx.user.email || "Admin",
@@ -392,7 +381,6 @@ export const appRouter = router({
     })).mutation(async ({ input, ctx }) => {
       const success = await db.updateKycStatus(input.id, "rejected", ctx.user.id, input.reason);
       
-      // Send email notification
       try {
         const kycDocs = await db.getPendingKycDocuments();
         const kycDoc = kycDocs.find(doc => doc.kycDoc.id === input.id);
@@ -403,7 +391,6 @@ export const appRouter = router({
         console.error('[KYC] Failed to send rejection email:', error);
       }
       
-      // Log the action
       await db.createActivityLog({
         userId: ctx.user.id,
         username: ctx.user.name || ctx.user.email || "Admin",
@@ -428,32 +415,18 @@ export const appRouter = router({
       for (const id of input.ids) {
         try {
           await db.updateKycStatus(id, "approved", ctx.user.id);
-          
-          // Send email notification
-          try {
-            const kycDocs = await db.getPendingKycDocuments();
-            const kycDoc = kycDocs.find(doc => doc.kycDoc.id === id);
-            if (kycDoc?.user?.email && kycDoc?.user?.nameEnglish) {
-              await sendKycApprovedEmail(kycDoc.user.email, kycDoc.user.nameEnglish);
-            }
-          } catch (error) {
-            console.error(`[KYC] Failed to send approval email for ${id}:`, error);
-          }
-          
           successCount++;
         } catch (error) {
-          console.error(`[KYC] Failed to approve ${id}:`, error);
           failedCount++;
         }
       }
       
-      // Log the action
       await db.createActivityLog({
         userId: ctx.user.id,
         username: ctx.user.name || ctx.user.email || "Admin",
         action: `Bulk approved ${successCount} KYC documents`,
         actionType: "kyc_approve",
-        description: `Admin bulk approved KYC verifications (${successCount} succeeded, ${failedCount} failed)`,
+        description: `Admin bulk approved KYC verifications`,
       });
       
       return { success: successCount, failed: failedCount };
@@ -469,32 +442,18 @@ export const appRouter = router({
       for (const id of input.ids) {
         try {
           await db.updateKycStatus(id, "rejected", ctx.user.id, input.reason);
-          
-          // Send email notification
-          try {
-            const kycDocs = await db.getPendingKycDocuments();
-            const kycDoc = kycDocs.find(doc => doc.kycDoc.id === id);
-            if (kycDoc?.user?.email && kycDoc?.user?.nameEnglish) {
-              await sendKycRejectedEmail(kycDoc.user.email, kycDoc.user.nameEnglish, input.reason);
-            }
-          } catch (error) {
-            console.error(`[KYC] Failed to send rejection email for ${id}:`, error);
-          }
-          
           successCount++;
         } catch (error) {
-          console.error(`[KYC] Failed to reject ${id}:`, error);
           failedCount++;
         }
       }
       
-      // Log the action
       await db.createActivityLog({
         userId: ctx.user.id,
         username: ctx.user.name || ctx.user.email || "Admin",
         action: `Bulk rejected ${successCount} KYC documents`,
         actionType: "kyc_reject",
-        description: `Admin bulk rejected KYC verifications (${successCount} succeeded, ${failedCount} failed)`,
+        description: `Admin bulk rejected KYC verifications`,
       });
       
       return { success: successCount, failed: failedCount };
@@ -519,7 +478,6 @@ export const appRouter = router({
       logoUrl: z.string().optional(),
       callbackUrl: z.string().optional(),
     })).mutation(async ({ input, ctx }) => {
-      // Generate token and secret
       const token = nanoid(32);
       const secret = nanoid(64);
       
@@ -529,7 +487,6 @@ export const appRouter = router({
         secret,
       });
       
-      // Log the action
       await db.createActivityLog({
         userId: ctx.user.id,
         username: ctx.user.name || ctx.user.email || "Admin",
@@ -555,7 +512,6 @@ export const appRouter = router({
     })).mutation(async ({ input, ctx }) => {
       const updated = await db.updateService(input.id, input.data);
       
-      // Log the action
       await db.createActivityLog({
         userId: ctx.user.id,
         username: ctx.user.name || ctx.user.email || "Admin",
@@ -572,7 +528,6 @@ export const appRouter = router({
     })).mutation(async ({ input, ctx }) => {
       const success = await db.deleteService(input.id);
       
-      // Log the action
       await db.createActivityLog({
         userId: ctx.user.id,
         username: ctx.user.name || ctx.user.email || "Admin",
@@ -592,7 +547,6 @@ export const appRouter = router({
       
       const updated = await db.updateService(input.id, { token, secret });
       
-      // Log the action
       await db.createActivityLog({
         userId: ctx.user.id,
         username: ctx.user.name || ctx.user.email || "Admin",
@@ -616,7 +570,6 @@ export const appRouter = router({
     })).mutation(async ({ input, ctx }) => {
       const result = await db.connectUserToService(ctx.user.id, input.serviceId);
       
-      // Log the action
       await db.createActivityLog({
         userId: ctx.user.id,
         username: ctx.user.name || ctx.user.email || "User",
@@ -633,7 +586,6 @@ export const appRouter = router({
     })).mutation(async ({ input, ctx }) => {
       const success = await db.disconnectUserFromService(ctx.user.id, input.serviceId);
       
-      // Log the action
       await db.createActivityLog({
         userId: ctx.user.id,
         username: ctx.user.name || ctx.user.email || "User",
@@ -659,7 +611,6 @@ export const appRouter = router({
     clear: adminProcedure.mutation(async ({ ctx }) => {
       const success = await db.clearActivityLogs();
       
-      // Log the action (this will be the only log after clearing)
       await db.createActivityLog({
         userId: ctx.user.id,
         username: ctx.user.name || ctx.user.email || "Admin",
@@ -687,7 +638,6 @@ export const appRouter = router({
       smsApiKey: z.string().optional(),
       smsApiSecret: z.string().optional(),
       smsSenderId: z.string().optional(),
-      // SMTP configuration
       smtpHost: z.string().optional(),
       smtpPort: z.number().optional(),
       smtpSecure: z.boolean().optional(),
@@ -698,11 +648,8 @@ export const appRouter = router({
       smtpEnabled: z.boolean().optional(),
     })).mutation(async ({ input, ctx }) => {
       const updated = await db.updateSystemSettings(input, ctx.user.id);
-      
-      // Clear SMTP config cache when settings are updated
       clearSmtpConfigCache();
       
-      // Log the action
       await db.createActivityLog({
         userId: ctx.user.id,
         username: ctx.user.name || ctx.user.email || "Admin",
@@ -714,7 +661,6 @@ export const appRouter = router({
       return updated;
     }),
     
-    // SMTP Test Connection
     testSmtpConnection: adminProcedure.input(z.object({
       host: z.string(),
       port: z.number(),
@@ -725,7 +671,6 @@ export const appRouter = router({
       return await testSmtpConnection(input);
     }),
     
-    // Send Test Email
     sendTestEmail: adminProcedure.input(z.object({
       email: z.string().email(),
     })).mutation(async ({ input, ctx }) => {
@@ -794,13 +739,13 @@ export const appRouter = router({
     }),
   }),
 
-  // ============= QR AUTHENTICATION =============
+  // ============= QR AUTHENTICATION (FOR 3RD PARTY APPS) =============
   qrAuth: router({
     generateToken: protectedProcedure.input(z.object({
       serviceId: z.number(),
     })).mutation(async ({ input, ctx }) => {
       const token = nanoid(32);
-      const expiresAt = new Date(Date.now() + 5 * 60 * 1000); // 5 minutes
+      const expiresAt = new Date(Date.now() + 5 * 60 * 1000); 
       
       await db.createQrAuthToken({
         userId: ctx.user.id,
@@ -809,7 +754,6 @@ export const appRouter = router({
         expiresAt,
       });
       
-      // Log the action
       await db.createActivityLog({
         userId: ctx.user.id,
         username: ctx.user.name || ctx.user.email || "User",
@@ -838,10 +782,8 @@ export const appRouter = router({
         throw new TRPCError({ code: 'BAD_REQUEST', message: 'Token expired' });
       }
       
-      // Mark as used
       await db.markQrTokenAsUsed(input.token);
       
-      // Get user info
       const user = await db.getUserById(qrToken.userId);
       
       return {
@@ -862,11 +804,9 @@ export const appRouter = router({
       const startDate = new Date(input.startDate);
       const endDate = new Date(input.endDate);
 
-      // Fetch data for the report
       const allUsers = await db.getAllUsers();
       const allLogs = await db.getAllActivityLogs();
 
-      // Calculate statistics
       const totalUsers = allUsers.length;
       const activeUsers = allUsers.filter(u => u.status === "active").length;
       const pendingKYC = allUsers.filter(u => u.kycStatus === "pending").length;
@@ -874,28 +814,24 @@ export const appRouter = router({
       const rejectedKYC = allUsers.filter(u => u.kycStatus === "rejected").length;
       const activeSessions = allLogs.filter(l => l.actionType === "login").length;
 
-      // User growth data (mock - last 6 months)
       const months = ["Jan", "Feb", "Mar", "Apr", "May", "Jun"];
       const userGrowthData = months.map((month, index) => ({
         month,
         count: Math.floor(totalUsers * (0.5 + index * 0.1)),
       }));
 
-      // KYC approval data
       const kycApprovalData = months.map((month, index) => ({
         month,
         approved: Math.floor(approvedKYC / 6),
         rejected: Math.floor(rejectedKYC / 6),
       }));
 
-      // Service usage data (mock)
       const serviceUsageData = [
         { service: "Moodle LMS", connections: Math.floor(totalUsers * 0.6) },
         { service: "Mobile App", connections: Math.floor(totalUsers * 0.8) },
         { service: "Admin Portal", connections: Math.floor(totalUsers * 0.3) },
       ];
 
-      // Recent users
       const recentUsers = allUsers.slice(0, 20);
 
       const reportData: ReportData = {
@@ -944,7 +880,6 @@ export const appRouter = router({
       recipientEmails: z.array(z.string().email()).min(1),
       isEnabled: z.boolean().default(true),
     })).mutation(async ({ input, ctx }) => {
-      // Calculate next run time
       const nextRunAt = calculateNextRunTime(input.frequency, input.dayOfWeek, input.dayOfMonth, input.timeOfDay);
       
       const schedule = await db.createReportSchedule({
@@ -954,7 +889,6 @@ export const appRouter = router({
         createdBy: ctx.user.id,
       });
       
-      // Log the action
       await db.createActivityLog({
         userId: ctx.user.id,
         username: ctx.user.name || ctx.user.email || "Admin",
@@ -985,7 +919,6 @@ export const appRouter = router({
         updateData.recipientEmails = JSON.stringify(input.data.recipientEmails);
       }
       
-      // Recalculate next run time if schedule changed
       if (input.data.frequency || input.data.dayOfWeek !== undefined || input.data.dayOfMonth !== undefined || input.data.timeOfDay) {
         const existingSchedule = await db.getReportScheduleById(input.id);
         if (existingSchedule) {
@@ -1000,7 +933,6 @@ export const appRouter = router({
       
       const updated = await db.updateReportSchedule(input.id, updateData);
       
-      // Log the action
       await db.createActivityLog({
         userId: ctx.user.id,
         username: ctx.user.name || ctx.user.email || "Admin",
@@ -1018,7 +950,6 @@ export const appRouter = router({
       const schedule = await db.getReportScheduleById(input.id);
       const success = await db.deleteReportSchedule(input.id);
       
-      // Log the action
       await db.createActivityLog({
         userId: ctx.user.id,
         username: ctx.user.name || ctx.user.email || "Admin",
@@ -1036,7 +967,6 @@ export const appRouter = router({
     })).mutation(async ({ input, ctx }) => {
       const updated = await db.updateReportSchedule(input.id, { isEnabled: input.isEnabled });
       
-      // Log the action
       await db.createActivityLog({
         userId: ctx.user.id,
         username: ctx.user.name || ctx.user.email || "Admin",
@@ -1057,7 +987,6 @@ export const appRouter = router({
       }
       
       try {
-        // Generate report
         const endDate = new Date();
         const startDate = new Date();
         if (schedule.reportType === 'monthly') {
@@ -1070,7 +999,6 @@ export const appRouter = router({
           startDate.setMonth(startDate.getMonth() - 1);
         }
         
-        // Fetch data for the report
         const allUsers = await db.getAllUsers();
         const allLogs = await db.getAllActivityLogs();
         
@@ -1118,7 +1046,6 @@ export const appRouter = router({
         
         const pdfBuffer = await generatePDFReport(reportData);
         
-        // Send email to recipients
         const recipients = JSON.parse(schedule.recipientEmails);
         await sendScheduledReportEmail(
           recipients,
@@ -1127,7 +1054,6 @@ export const appRouter = router({
           pdfBuffer
         );
         
-        // Update schedule status
         const nextRunAt = calculateNextRunTime(
           schedule.frequency,
           schedule.dayOfWeek ?? undefined,
@@ -1142,7 +1068,6 @@ export const appRouter = router({
           lastError: null,
         });
         
-        // Log the action
         await db.createActivityLog({
           userId: ctx.user.id,
           username: ctx.user.name || ctx.user.email || "Admin",
@@ -1153,7 +1078,6 @@ export const appRouter = router({
         
         return { success: true, message: `Report sent to ${recipients.length} recipient(s)` };
       } catch (error) {
-        // Update schedule with error
         await db.updateReportSchedule(input.id, {
           lastRunAt: new Date(),
           lastStatus: "failed",
@@ -1181,7 +1105,6 @@ export const appRouter = router({
     })).mutation(async ({ input, ctx }) => {
       const updated = await db.updateUser(ctx.user.id, input);
       
-      // Log the action
       await db.createActivityLog({
         userId: ctx.user.id,
         username: ctx.user.name || ctx.user.email || "User",
@@ -1196,10 +1119,8 @@ export const appRouter = router({
     updatePin: protectedProcedure.input(z.object({
       pin: z.string().length(6),
     })).mutation(async ({ input, ctx }) => {
-      // In production, hash the PIN before storing
       const updated = await db.updateUser(ctx.user.id, { pin: input.pin });
       
-      // Log the action
       await db.createActivityLog({
         userId: ctx.user.id,
         username: ctx.user.name || ctx.user.email || "User",
@@ -1216,7 +1137,6 @@ export const appRouter = router({
     })).mutation(async ({ input, ctx }) => {
       await db.updateUser(ctx.user.id, { biometricEnabled: input.enabled });
       
-      // Log the action
       await db.createActivityLog({
         userId: ctx.user.id,
         username: ctx.user.name || ctx.user.email || "User",
@@ -1233,7 +1153,6 @@ export const appRouter = router({
     })).mutation(async ({ input, ctx }) => {
       await db.updateUser(ctx.user.id, { twoFactorEnabled: input.enabled });
       
-      // Log the action
       await db.createActivityLog({
         userId: ctx.user.id,
         username: ctx.user.name || ctx.user.email || "User",
