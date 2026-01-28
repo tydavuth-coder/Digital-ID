@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { 
   StyleSheet, Text, View, TouchableOpacity, SafeAreaView, 
   StatusBar, Image, ScrollView, Dimensions, Platform, Alert 
@@ -8,7 +8,7 @@ import { LinearGradient } from 'expo-linear-gradient';
 
 const { width } = Dimensions.get('window');
 
-// --- DATA ---
+// --- TYPES & MOCK DATA ---
 interface Integration {
   id: string;
   name: string;
@@ -17,18 +17,14 @@ interface Integration {
   icon: string;
 }
 
-// ទិន្នន័យសម្រាប់បង្ហាញ icon និងពណ៌
 const SERVICE_ENRICHMENT: Record<string, { subtitle: string; color: string; icon: any }> = {
-  'EFI Moodle LMS': { subtitle: 'lms-efi.mef.gov.kh', color: '#f97316', icon: 'school' },
   'Taxation': { subtitle: 'GDT Service', color: '#ea580c', icon: 'bank' },
-  'Business Reg': { subtitle: 'Ministry of Commerce', color: '#4f46e5', icon: 'storefront' },
   'Civil Status': { subtitle: 'Vital Records', color: '#db2777', icon: 'account-group' },
   'Driver License': { subtitle: 'Transport Dept', color: '#0d9488', icon: 'card-account-details' },
   'Land Mgmt': { subtitle: 'Cadastral Data', color: '#16a34a', icon: 'map-marker-radius' },
   'Vehicle Registration': { subtitle: 'Public Works', color: '#2563eb', icon: 'car' },
 };
 
-// ទិន្នន័យគំរូ (Mock Data)
 const MOCK_INTEGRATIONS: Integration[] = [
   { id: 'tax', name: 'Taxation', clientId: 'gdt-tax-001', status: 'Active', icon: 'bank' },
   { id: 'civ', name: 'Civil Status', clientId: 'moi-civil-112', status: 'Active', icon: 'account-group' },
@@ -36,25 +32,27 @@ const MOCK_INTEGRATIONS: Integration[] = [
   { id: 'lnd', name: 'Land Mgmt', clientId: 'mlp-lnd-01', status: 'Active', icon: 'map-marker-radius' },
 ];
 
-// Props ដែល Dashboard ត្រូវការពី App.tsx
 interface DashboardProps {
   onScanPress: () => void;
   onLogout: () => void;
   onEditProfile: () => void;
   onSettings: () => void;
+  userData?: any; // ទទួលទិន្នន័យពី App.tsx
 }
 
-export default function DashboardScreen({ onScanPress, onLogout, onEditProfile, onSettings }: DashboardProps) {
+export default function DashboardScreen({ onScanPress, onLogout, onEditProfile, onSettings, userData }: DashboardProps) {
   
-  const [profile] = useState({
-    name: "Sophea Chan",
-    id: "123-456-789",
-    avatar: "https://i.pravatar.cc/150?img=5",
-    validUntil: "Dec 2028"
-  });
+  // ប្រើទិន្នន័យពី Register បើមាន, បើអត់ប្រើ Default
+  const profile = {
+    name: userData?.nameEn || "Sophea Chan",
+    id: userData?.idNumber || "123-456-789",
+    avatar: userData?.avatar || "https://i.pravatar.cc/150?img=5",
+    validUntil: userData?.expiryDate || "Dec 2028",
+    status: "Digitally Verified"
+  };
 
   const handleServiceClick = (serviceName: string) => {
-    Alert.alert("Service", `Opening ${serviceName}...`);
+    Alert.alert("Service", `Connecting to ${serviceName}...`);
   };
 
   return (
@@ -108,7 +106,7 @@ export default function DashboardScreen({ onScanPress, onLogout, onEditProfile, 
               <Text style={styles.footerLabel}>STATUS</Text>
               <View style={styles.statusRow}>
                 <MaterialIcons name="verified" size={16} color="#4ade80" />
-                <Text style={styles.statusValue}>Digitally Verified</Text>
+                <Text style={styles.statusValue}>{profile.status}</Text>
               </View>
             </View>
             <View style={{alignItems: 'flex-end'}}>
@@ -164,6 +162,7 @@ export default function DashboardScreen({ onScanPress, onLogout, onEditProfile, 
             );
           })}
           
+          {/* Add Service Button */}
           <TouchableOpacity style={[styles.serviceCard, { borderStyle: 'dashed', borderWidth: 1, borderColor: '#cbd5e1', backgroundColor: 'transparent' }]}>
             <View style={[styles.serviceIconBox, { backgroundColor: '#f1f5f9' }]}>
               <Ionicons name="add" size={28} color="#64748b" />
@@ -187,6 +186,7 @@ export default function DashboardScreen({ onScanPress, onLogout, onEditProfile, 
           <Text style={styles.navLabel}>Files</Text>
         </TouchableOpacity>
 
+        {/* Floating Scan Button */}
         <View style={styles.scanBtnContainer}>
           <TouchableOpacity style={styles.scanBtn} activeOpacity={0.9} onPress={onScanPress}>
             <MaterialCommunityIcons name="qrcode-scan" size={28} color="white" />

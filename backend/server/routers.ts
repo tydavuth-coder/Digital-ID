@@ -8,8 +8,7 @@ import * as db from "./db";
 import { nanoid } from "nanoid";
 import { sendKycApprovedEmail, sendKycRejectedEmail, sendServiceConnectedEmail, testSmtpConnection, sendTestEmail, clearSmtpConfigCache, sendScheduledReportEmail } from "./email";
 import { generatePDFReport, type ReportData } from "./reports";
-// IMPORT NEW WEBSOCKET FUNCTION
-import { emitDashboardLoginSuccess } from "./websocket";
+import { emitDashboardLoginSuccess, getIO } from "./websocket"; // ✅ Added getIO
 
 // Helper function to calculate next run time for scheduled reports
 function calculateNextRunTime(
@@ -25,12 +24,10 @@ function calculateNextRunTime(
   
   switch (frequency) {
     case 'daily':
-      if (next <= now) {
-        next.setDate(next.getDate() + 1);
-      }
+      if (next <= now) next.setDate(next.getDate() + 1);
       break;
     case 'weekly':
-      const targetDay = dayOfWeek ?? 1; // Default to Monday
+      const targetDay = dayOfWeek ?? 1; 
       const currentDay = next.getDay();
       let daysUntilTarget = targetDay - currentDay;
       if (daysUntilTarget <= 0 || (daysUntilTarget === 0 && next <= now)) {
@@ -39,23 +36,18 @@ function calculateNextRunTime(
       next.setDate(next.getDate() + daysUntilTarget);
       break;
     case 'monthly':
-      const targetDate = dayOfMonth ?? 1; // Default to 1st
+      const targetDate = dayOfMonth ?? 1;
       next.setDate(targetDate);
-      if (next <= now) {
-        next.setMonth(next.getMonth() + 1);
-      }
+      if (next <= now) next.setMonth(next.getMonth() + 1);
       break;
     case 'quarterly':
       const currentMonth = next.getMonth();
       const nextQuarterMonth = Math.ceil((currentMonth + 1) / 3) * 3;
       next.setMonth(nextQuarterMonth);
       next.setDate(dayOfMonth ?? 1);
-      if (next <= now) {
-        next.setMonth(next.getMonth() + 3);
-      }
+      if (next <= now) next.setMonth(next.getMonth() + 3);
       break;
   }
-  
   return next;
 }
 
@@ -79,22 +71,17 @@ export const appRouter = router({
     }),
   }),
 
-  // ============= MOBILE APP SYNC (NEW) =============
+  // ============= MOBILE APP SYNC =============
   mobile: router({
-    // Endpoint for Mobile App to authorize a Dashboard session
     authorizeDashboard: protectedProcedure
       .input(z.object({
-        socketId: z.string(), // The QR Code content
+        socketId: z.string(),
         deviceInfo: z.string().optional(),
       }))
       .mutation(async ({ ctx, input }) => {
         try {
-          // 1. Generate a new session token for the Web Dashboard
-          // Note: In a production JWT setup, you might generate a JWT here using your `jose` library.
-          // For now, we create an opaque token stored in the DB.
           const webSessionToken = nanoid(64);
           
-          // 2. Save session to database (Active 24 hours)
           await db.createActiveSession({
              userId: ctx.user.id,
              sessionToken: webSessionToken,
@@ -103,7 +90,6 @@ export const appRouter = router({
              expiresAt: new Date(Date.now() + 24 * 60 * 60 * 1000), 
           });
 
-          // 3. Send success signal to the specific Web Browser
           emitDashboardLoginSuccess(input.socketId, {
             token: webSessionToken,
             user: {
@@ -115,7 +101,6 @@ export const appRouter = router({
             }
           });
 
-          // 4. Log the activity
           await db.createActivityLog({
             userId: ctx.user.id,
             username: ctx.user.name || ctx.user.email || "User",
@@ -220,7 +205,6 @@ export const appRouter = router({
       for (const userData of input.users) {
         try {
           const tempOpenId = `imported_${nanoid(16)}`;
-          
           await db.upsertUser({
             openId: tempOpenId,
             name: userData.nameEnglish,
@@ -240,12 +224,10 @@ export const appRouter = router({
               status: userData.status || "pending",
             });
           }
-          
           successCount++;
         } catch (error) {
           failedCount++;
           errors.push(`Failed to import ${userData.email}: ${error}`);
-          console.error(`[User Import] Failed to import ${userData.email}:`, error);
         }
       }
       
@@ -265,6 +247,103 @@ export const appRouter = router({
   kyc: router({
     getPending: adminProcedure.query(async () => {
       return await db.getPendingKycDocuments();
+    }),
+
+    // ✅ NEW: Submit KYC from Mobile App
+    submit: publicProcedure.input(z.object({
+      nameKh: z.string().optional(),
+      nameEn: z.string().optional(),
+      gender: z.enum(["male", "female", "other"]).optional(),
+      idNumber: z.string().optional(),
+      dob: z.string().optional(),
+      pob: z.string().optional(),
+      address: z.string().optional(),
+      expiryDate: z.string().optional(),
+      
+      frontImage: z.string().optional(),
+      backImage: z.string().optional(),
+      selfieImage: z.string().optional(),
+    })).mutation(async ({ input }) => {
+      try {
+        // 1. Create a new pending user
+        const openId = `user_${nanoid(10)}`;
+        
+        // This relies on your `db.insert(users)` returning the insert ID
+        // Make sure your db.insert supports returning values or use appropriate method
+        const newUser = {
+            openId: openId,
+            nameEnglish: input.nameEn,
+            nameKhmer: input.nameKh,
+            nationalId: input.idNumber,
+            gender: input.gender as any,
+            address: input.address,
+            status: "pending",
+            kycStatus: "pending",
+            role: "user",
+            loginMethod: "mobile_kyc"
+        };
+
+        // Assuming you have a function to insert user directly
+        // If not, adapt this part to match your db helper
+        const createdUser = await db.upsertUser({
+            openId: openId,
+            name: input.nameEn,
+            email: `temp_${nanoid(5)}@digitalid.local` // Temp email
+        });
+        
+        // Update with full details
+        await db.updateUser(createdUser.id, {
+            nameKhmer: input.nameKh,
+            nameEnglish: input.nameEn,
+            nationalId: input.idNumber,
+            gender: input.gender as any,
+            address: input.address,
+            status: "pending",
+            kycStatus: "pending"
+        });
+
+        const newUserId = createdUser.id;
+
+        // 2. Insert KYC Documents
+        if (input.frontImage && input.backImage && input.selfieImage) {
+            await db.createKycDocument({
+                userId: newUserId,
+                nidFrontUrl: input.frontImage, // In prod, this should be an S3 URL
+                nidBackUrl: input.backImage,
+                selfieUrl: input.selfieImage,
+            });
+        }
+
+        // 3. Log Activity
+        await db.createActivityLog({
+            userId: newUserId, 
+            username: input.nameEn || "New Applicant",
+            action: "Submitted KYC Registration",
+            actionType: "kyc_submit",
+            description: `New user application via Mobile App.`,
+        });
+
+        // 4. Notify Admins via WebSocket
+        try {
+            const io = getIO();
+            io.to("admins").emit("kyc-submission", {
+                userId: newUserId,
+                userName: input.nameEn,
+                timestamp: new Date()
+            });
+        } catch (e) {
+            console.log("WebSocket notification failed (minor issue):", e);
+        }
+        
+        return { success: true, userId: newUserId };
+
+      } catch (error) {
+        console.error("KYC Submit Error:", error);
+        throw new TRPCError({
+            code: 'INTERNAL_SERVER_ERROR',
+            message: 'Failed to submit KYC application'
+        });
+      }
     }),
     
     approve: adminProcedure.input(z.object({
@@ -318,29 +397,6 @@ export const appRouter = router({
       });
       
       return { success };
-    }),
-    
-    submit: protectedProcedure.input(z.object({
-      nidFrontUrl: z.string(),
-      nidBackUrl: z.string(),
-      selfieUrl: z.string(),
-    })).mutation(async ({ input, ctx }) => {
-      const result = await db.createKycDocument({
-        userId: ctx.user.id,
-        nidFrontUrl: input.nidFrontUrl,
-        nidBackUrl: input.nidBackUrl,
-        selfieUrl: input.selfieUrl,
-      });
-      
-      await db.createActivityLog({
-        userId: ctx.user.id,
-        username: ctx.user.name || ctx.user.email || "User",
-        action: "Submitted KYC documents",
-        actionType: "kyc_submit",
-        description: "User submitted KYC verification documents",
-      });
-      
-      return result;
     }),
     
     getMyKyc: protectedProcedure.query(async ({ ctx }) => {

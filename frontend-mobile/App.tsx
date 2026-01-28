@@ -16,34 +16,39 @@ import SettingsScreen from './src/screens/SettingsScreen';
 export default function App() {
   const [currentScreen, setCurrentScreen] = useState<'welcome' | 'register' | 'recovery' | 'dashboard' | 'scan' | 'edit_profile' | 'settings'>('welcome');
   const [previousScreen, setPreviousScreen] = useState<'welcome' | 'dashboard'>('welcome');
+  
+  // State សម្រាប់ទិន្នន័យអ្នកប្រើប្រាស់
+  const [userProfile, setUserProfile] = useState<any>(null);
 
-  // Navigation Functions
+  // --- NAVIGATION FUNCTIONS ---
   const goBackToWelcome = () => setCurrentScreen('welcome');
   const goToDashboard = () => setCurrentScreen('dashboard');
   const goToScan = () => setCurrentScreen('scan');
   const goToEditProfile = () => setCurrentScreen('edit_profile');
   
-  // Settings Navigation (អាចចូលបានទាំងពី Welcome និង Dashboard)
   const goToSettings = (from: 'welcome' | 'dashboard') => {
     setPreviousScreen(from);
     setCurrentScreen('settings');
   };
 
+  // Callback ពេល Register ជោគជ័យ
+  const handleRegisterFinish = (data: any) => {
+    if (data) {
+        setUserProfile(data); // រក្សាទុកទិន្នន័យដែលបានពី Register
+    }
+    setCurrentScreen('dashboard');
+  };
+
   // --- SCREEN RENDERING ---
 
-  // 1. REGISTER
   if (currentScreen === 'register') {
     return (
       <View style={{ flex: 1 }}>
-        <RegisterScreen onBack={goBackToWelcome} onFinish={goToDashboard} />
-        <TouchableOpacity style={styles.floatingBackBtn} onPress={goBackToWelcome}>
-          <Ionicons name="close-circle" size={36} color="#334155" />
-        </TouchableOpacity>
+        <RegisterScreen onBack={goBackToWelcome} onFinish={handleRegisterFinish} />
       </View>
     );
   }
 
-  // 2. RECOVERY
   if (currentScreen === 'recovery') {
     return (
       <View style={{ flex: 1 }}>
@@ -52,29 +57,27 @@ export default function App() {
     );
   }
 
-  // 3. DASHBOARD
   if (currentScreen === 'dashboard') {
     return (
       <DashboardScreen 
+        userData={userProfile} // ✅ បញ្ជូនទិន្នន័យទៅ Dashboard
         onScanPress={goToScan}
         onLogout={goBackToWelcome}
         onEditProfile={goToEditProfile}
-        onSettings={() => goToSettings('dashboard')} // ចូល Settings ពី Dashboard
+        onSettings={() => goToSettings('dashboard')}
       />
     );
   }
 
-  // 4. SETTINGS
   if (currentScreen === 'settings') {
     return (
       <SettingsScreen 
-        onBack={() => setCurrentScreen(previousScreen)} // ថយក្រោយទៅកន្លែងដើមវិញ
-        isAuthenticated={previousScreen === 'dashboard'} // បើមកពី Dashboard បង្ហាញ Account Info
+        onBack={() => setCurrentScreen(previousScreen)} 
+        isAuthenticated={previousScreen === 'dashboard'} 
       />
     );
   }
 
-  // 5. EDIT PROFILE
   if (currentScreen === 'edit_profile') {
     return (
       <View style={{ flex: 1 }}>
@@ -83,7 +86,6 @@ export default function App() {
     );
   }
 
-  // 6. SCAN QR
   if (currentScreen === 'scan') {
     return (
       <View style={{ flex: 1 }}>
@@ -92,13 +94,12 @@ export default function App() {
     );
   }
 
-  // 7. WELCOME SCREEN (DEFAULT)
+  // --- WELCOME SCREEN ---
   return (
     <SafeAreaView style={styles.container}>
       <StatusBar barStyle="light-content" backgroundColor="#1d4ed8" />
       
       <View style={styles.content}>
-        
         <View style={styles.brandSection}>
           <View style={styles.logoContainer}>
             <Ionicons name="finger-print" size={60} color="white" />
@@ -128,7 +129,6 @@ export default function App() {
         <View style={styles.footer}>
           <Text style={styles.versionText}>v1.0.0</Text>
         </View>
-
       </View>
     </SafeAreaView>
   );
@@ -147,5 +147,4 @@ const styles = StyleSheet.create({
   buttonText: { color: '#1d4ed8', fontSize: 16, fontWeight: 'bold' },
   footer: { alignItems: 'center' },
   versionText: { color: 'rgba(255,255,255,0.5)', fontSize: 12 },
-  floatingBackBtn: { position: 'absolute', top: 50, right: 20, zIndex: 100 },
 });
