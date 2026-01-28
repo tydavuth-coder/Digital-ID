@@ -523,3 +523,21 @@ export async function getDueReportSchedules() {
       )
     );
 }
+
+export async function createActiveSession(data: {
+  userId: number;
+  sessionToken: string;
+  deviceInfo?: string;
+  ipAddress?: string;
+  expiresAt: Date;
+}) {
+  const [result] = await db.insert(activeSessions).values({
+    userId: data.userId,
+    sessionToken: data.sessionToken,
+    deviceInfo: data.deviceInfo,
+    ipAddress: data.ipAddress,
+    expiresAt: data.expiresAt,
+  });
+  
+  return result;
+}

@@ -15,6 +15,12 @@ export function initializeWebSocket(httpServer: HTTPServer) {
   io.on("connection", (socket) => {
     console.log(`[WebSocket] Client connected: ${socket.id}`);
 
+    // Dashboard នឹងហៅ event នេះនៅពេលបើកទំព័រ Login
+    socket.on("join-login-session", () => {
+       // មិនចាំបាច់ធ្វើអ្វីច្រើនទេ គ្រាន់តែដឹងថា socket.id នេះត្រៀមចាំទទួល Login
+       console.log(`[WebSocket] Client ${socket.id} waiting for QR login`);
+    });
+
     socket.on("join-admin", (data: { userId: number; role: string }) => {
       socket.join("admins");
       socket.join(`role-${data.role}`);
@@ -36,7 +42,26 @@ export function getIO(): SocketIOServer {
   return io;
 }
 
-// Notification event emitters
+// ==========================================
+// NEW: Function to handle QR Login Success
+// ==========================================
+export function emitDashboardLoginSuccess(socketId: string, data: { token: string; user: any }) {
+  if (!io) return;
+
+  // បាញ់សញ្ញាទៅកាន់តែ Browser ជាក់លាក់ដែលកំពុងបង្ហាញ QR Code ប៉ុណ្ណោះ
+  io.to(socketId).emit("dashboard-login-success", {
+    type: "login_success",
+    title: "Login Successful",
+    message: "Mobile authentication verified.",
+    token: data.token,
+    user: data.user,
+    timestamp: new Date().toISOString(),
+  });
+
+  console.log(`[WebSocket] Emitted dashboard login success for socket ${socketId}`);
+}
+
+// Notification event emitters (Existing code...)
 export function emitKYCSubmission(data: {
   userId: number;
   userName: string;
@@ -51,8 +76,6 @@ export function emitKYCSubmission(data: {
     data,
     timestamp: new Date().toISOString(),
   });
-
-  console.log(`[WebSocket] Emitted KYC submission notification for user ${data.userId}`);
 }
 
 export function emitUserRegistration(data: {
@@ -69,8 +92,6 @@ export function emitUserRegistration(data: {
     data,
     timestamp: new Date().toISOString(),
   });
-
-  console.log(`[WebSocket] Emitted user registration notification for user ${data.userId}`);
 }
 
 export function emitKYCApproval(data: {
@@ -88,8 +109,6 @@ export function emitKYCApproval(data: {
     data,
     timestamp: new Date().toISOString(),
   });
-
-  console.log(`[WebSocket] Emitted KYC approval notification for user ${data.userId}`);
 }
 
 export function emitKYCRejection(data: {
@@ -108,8 +127,6 @@ export function emitKYCRejection(data: {
     data,
     timestamp: new Date().toISOString(),
   });
-
-  console.log(`[WebSocket] Emitted KYC rejection notification for user ${data.userId}`);
 }
 
 export function emitSystemAlert(data: {
@@ -129,6 +146,4 @@ export function emitSystemAlert(data: {
     severity: data.severity,
     timestamp: new Date().toISOString(),
   });
-
-  console.log(`[WebSocket] Emitted system alert to ${room}: ${data.title}`);
 }
