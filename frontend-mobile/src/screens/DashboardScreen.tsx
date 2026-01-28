@@ -17,6 +17,7 @@ interface Integration {
   icon: string;
 }
 
+// ទិន្នន័យសម្រាប់បង្ហាញ icon និងពណ៌
 const SERVICE_ENRICHMENT: Record<string, { subtitle: string; color: string; icon: any }> = {
   'EFI Moodle LMS': { subtitle: 'lms-efi.mef.gov.kh', color: '#f97316', icon: 'school' },
   'Taxation': { subtitle: 'GDT Service', color: '#ea580c', icon: 'bank' },
@@ -27,6 +28,7 @@ const SERVICE_ENRICHMENT: Record<string, { subtitle: string; color: string; icon
   'Vehicle Registration': { subtitle: 'Public Works', color: '#2563eb', icon: 'car' },
 };
 
+// ទិន្នន័យគំរូ (Mock Data)
 const MOCK_INTEGRATIONS: Integration[] = [
   { id: 'tax', name: 'Taxation', clientId: 'gdt-tax-001', status: 'Active', icon: 'bank' },
   { id: 'civ', name: 'Civil Status', clientId: 'moi-civil-112', status: 'Active', icon: 'account-group' },
@@ -34,13 +36,15 @@ const MOCK_INTEGRATIONS: Integration[] = [
   { id: 'lnd', name: 'Land Mgmt', clientId: 'mlp-lnd-01', status: 'Active', icon: 'map-marker-radius' },
 ];
 
+// Props ដែល Dashboard ត្រូវការពី App.tsx
 interface DashboardProps {
   onScanPress: () => void;
   onLogout: () => void;
-  onEditProfile: () => void; // ✅ New Prop
+  onEditProfile: () => void;
+  onSettings: () => void;
 }
 
-export default function DashboardScreen({ onScanPress, onLogout, onEditProfile }: DashboardProps) {
+export default function DashboardScreen({ onScanPress, onLogout, onEditProfile, onSettings }: DashboardProps) {
   
   const [profile] = useState({
     name: "Sophea Chan",
@@ -64,7 +68,7 @@ export default function DashboardScreen({ onScanPress, onLogout, onEditProfile }
             <Ionicons name="menu" size={28} color="#1e293b" />
           </TouchableOpacity>
           <Text style={styles.headerTitle}>My Identity</Text>
-          <TouchableOpacity>
+          <TouchableOpacity onPress={() => Alert.alert("Notifications", "No new alerts")}>
             <View style={styles.bellContainer}>
               <Ionicons name="notifications-outline" size={26} color="#1e293b" />
               <View style={styles.badge} />
@@ -116,21 +120,21 @@ export default function DashboardScreen({ onScanPress, onLogout, onEditProfile }
 
         {/* 3. QUICK ACTIONS */}
         <View style={styles.quickActions}>
-          <TouchableOpacity style={styles.actionBtn}>
+          <TouchableOpacity style={styles.actionBtn} onPress={() => Alert.alert("History", "No logs yet")}>
             <View style={[styles.actionIconCircle, {backgroundColor: '#eff6ff'}]}>
               <MaterialCommunityIcons name="history" size={24} color="#2563EB" />
             </View>
             <Text style={styles.actionLabel}>History</Text>
           </TouchableOpacity>
 
-          <TouchableOpacity style={styles.actionBtn}>
+          <TouchableOpacity style={styles.actionBtn} onPress={() => Alert.alert("Documents", "No documents")}>
             <View style={[styles.actionIconCircle, {backgroundColor: '#eff6ff'}]}>
               <Ionicons name="document-text-outline" size={24} color="#2563EB" />
             </View>
             <Text style={styles.actionLabel}>Documents</Text>
           </TouchableOpacity>
 
-          <TouchableOpacity style={styles.actionBtn}>
+          <TouchableOpacity style={styles.actionBtn} onPress={onSettings}>
             <View style={[styles.actionIconCircle, {backgroundColor: '#eff6ff'}]}>
               <Ionicons name="settings-outline" size={24} color="#2563EB" />
             </View>
