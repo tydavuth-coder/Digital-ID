@@ -1,19 +1,20 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { 
   StyleSheet, Text, View, TouchableOpacity, SafeAreaView, 
-  StatusBar, Dimensions, Platform, ActivityIndicator, Switch, Alert 
+  StatusBar, Dimensions, Platform, ActivityIndicator, Switch, Alert, Image 
 } from 'react-native';
 import { CameraView, CameraType, useCameraPermissions } from 'expo-camera';
-import { Ionicons, MaterialIcons, FontAwesome5 } from '@expo/vector-icons';
+import { Ionicons, MaterialIcons } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';
 
-const { width, height } = Dimensions.get('window');
-const CARD_ASPECT_RATIO = 1.58; // Standard ID Card ratio
-const FRAME_WIDTH = width * 0.9;
-const FRAME_HEIGHT = FRAME_WIDTH / CARD_ASPECT_RATIO;
+const { width } = Dimensions.get('window');
 
-// ជំហាននៃការចុះឈ្មោះ
-type Step = 'front' | 'back' | 'processing' | 'selfie' | 'pin';
+// ជំហាននៃការចុះឈ្មោះ (Updated Flow)
+type Step = 
+  | 'front' | 'processing_front' 
+  | 'back' | 'processing_back' 
+  | 'selfie' | 'processing_selfie' 
+  | 'pin_setup' | 'pin_confirm';
 
 interface RegisterProps {
   onBack: () => void;
@@ -27,44 +28,72 @@ export default function RegisterScreen({ onBack, onFinish }: RegisterProps) {
   // State
   const [step, setStep] = useState<Step>('front');
   const [flash, setFlash] = useState(false);
-  const [pin, setPin] = useState('');
-  const [faceIDEnabled, setFaceIDEnabled] = useState(false);
   
-  // Processing Animation Simulation
+  // PIN State
+  const [pin, setPin] = useState('');
+  const [confirmPin, setConfirmPin] = useState('');
+  const [faceIDEnabled, setFaceIDEnabled] = useState(true);
+
+  // --- AUTOMATED PROCESSING LOGIC ---
   useEffect(() => {
-    if (step === 'processing') {
-      const timer = setTimeout(() => {
-        setStep('selfie');
-      }, 2500); // ធ្វើពុតជា load 2.5 វិនាទី
-      return () => clearTimeout(timer);
+    let timer: NodeJS.Timeout;
+
+    if (step === 'processing_front') {
+      timer = setTimeout(() => setStep('back'), 2000); // 2s delay
+    } 
+    else if (step === 'processing_back') {
+      timer = setTimeout(() => setStep('selfie'), 2000);
+    } 
+    else if (step === 'processing_selfie') {
+      timer = setTimeout(() => setStep('pin_setup'), 2000);
     }
+
+    return () => clearTimeout(timer);
   }, [step]);
 
-  // Handle Capture
+  // --- ACTIONS ---
+
   const handleCapture = async () => {
-    if (step === 'front') {
-        setStep('back'); // ទៅថតខាងក្រោយ
-    } else if (step === 'back') {
-        setStep('processing'); // ទៅផ្ទាំង Processing
-    } else if (step === 'selfie') {
-        setStep('pin'); // ទៅដាក់ PIN
-    }
+    if (step === 'front') setStep('processing_front');
+    else if (step === 'back') setStep('processing_back');
+    else if (step === 'selfie') setStep('processing_selfie');
   };
 
-  // Handle PIN Input
   const handlePinInput = (num: string) => {
-    if (num === 'del') {
-      setPin(prev => prev.slice(0, -1));
-    } else if (pin.length < 6) {
-      const newPin = pin + num;
-      setPin(newPin);
-      if (newPin.length === 6) {
-        // PIN ពេញហើយ -> បញ្ចប់
-        setTimeout(() => {
-            Alert.alert("ជោគជ័យ", "ការចុះឈ្មោះត្រូវបានបញ្ចប់!", [
-                { text: "ទៅកាន់ Dashboard", onPress: onFinish }
-            ]);
-        }, 300);
+    // Logic សម្រាប់ Setup PIN
+    if (step === 'pin_setup') {
+      if (num === 'del') {
+        setPin(prev => prev.slice(0, -1));
+      } else if (pin.length < 6) {
+        const newPin = pin + num;
+        setPin(newPin);
+        if (newPin.length === 6) {
+          setTimeout(() => setStep('pin_confirm'), 300); // ពេញ 6 ខ្ទង់ ទៅ Confirm
+        }
+      }
+    } 
+    // Logic សម្រាប់ Confirm PIN
+    else if (step === 'pin_confirm') {
+      if (num === 'del') {
+        setConfirmPin(prev => prev.slice(0, -1));
+      } else if (confirmPin.length < 6) {
+        const newConfirm = confirmPin + num;
+        setConfirmPin(newConfirm);
+        
+        if (newConfirm.length === 6) {
+          if (newConfirm === pin) {
+            // PIN ដូចគ្នា -> ជោគជ័យ
+            setTimeout(() => {
+                Alert.alert("ជោគជ័យ", "គណនីរបស់អ្នកត្រូវបានបង្កើត!", [
+                    { text: "ចូល Dashboard", onPress: onFinish }
+                ]);
+            }, 300);
+          } else {
+            // PIN ខុសគ្នា -> Reset Confirm
+            Alert.alert("Error", "លេខ PIN មិនដូចគ្នាទេ។ សូមព្យាយាមម្តងទៀត។");
+            setConfirmPin('');
+          }
+        }
       }
     }
   };
@@ -73,79 +102,80 @@ export default function RegisterScreen({ onBack, onFinish }: RegisterProps) {
 
   // 1. HEADER
   const renderHeader = () => {
-    if (step === 'pin') {
-      return (
-        <View style={styles.headerRow}>
-          <TouchableOpacity onPress={() => setStep('selfie')}>
-            <Ionicons name="arrow-back" size={28} color="#0F172A" />
-          </TouchableOpacity>
-          <Text style={styles.headerTitleDark}>Set PIN</Text>
-          <TouchableOpacity onPress={onFinish}>
-            <Text style={styles.skipText}>Skip</Text>
-          </TouchableOpacity>
-        </View>
-      );
-    }
+    const isPinStep = step === 'pin_setup' || step === 'pin_confirm';
+    
     return (
       <View style={styles.headerRow}>
         <TouchableOpacity onPress={onBack}>
           <Ionicons name="arrow-back" size={28} color="#0F172A" />
         </TouchableOpacity>
-        <View style={{alignItems: 'center'}}>
-            <Text style={styles.headerTitleDark}>Identity Verification</Text>
-            {/* Pagination Dots */}
-            <View style={styles.paginationContainer}>
-                <View style={[styles.dot, step === 'front' ? styles.activeDot : null]} />
-                <View style={[styles.dot, step === 'back' ? styles.activeDot : null]} />
-                <View style={[styles.dot, step === 'selfie' ? styles.activeDot : null]} />
-                <View style={[styles.dot, step === 'pin' ? styles.activeDot : null]} />
+        
+        {!isPinStep ? (
+            <View style={{alignItems: 'center'}}>
+                <Text style={styles.headerTitleDark}>Identity Verification</Text>
+                {/* Dots Indicator */}
+                <View style={styles.paginationContainer}>
+                    <View style={[styles.dot, (step === 'front' || step === 'processing_front') && styles.activeDot]} />
+                    <View style={[styles.dot, (step === 'back' || step === 'processing_back') && styles.activeDot]} />
+                    <View style={[styles.dot, (step === 'selfie' || step === 'processing_selfie') && styles.activeDot]} />
+                </View>
             </View>
-        </View>
-        <TouchableOpacity onPress={() => setFlash(!flash)}>
-          <Ionicons name={flash ? "flash" : "flash-off"} size={24} color="#0F172A" />
+        ) : (
+            <Text style={styles.headerTitleDark}>Security Setup</Text>
+        )}
+
+        <TouchableOpacity onPress={() => setFlash(!flash)} disabled={isPinStep}>
+          <Ionicons name={flash ? "flash" : "flash-off"} size={24} color={isPinStep ? "transparent" : "#0F172A"} />
         </TouchableOpacity>
       </View>
     );
   };
 
-  // 2. PIN SCREEN
-  if (step === 'pin') {
+  // 2. PIN SETUP & CONFIRM SCREEN
+  if (step === 'pin_setup' || step === 'pin_confirm') {
+    const isConfirm = step === 'pin_confirm';
+    const currentPin = isConfirm ? confirmPin : pin;
+    
     return (
       <SafeAreaView style={styles.container}>
         <StatusBar barStyle="dark-content" />
         {renderHeader()}
         
         <View style={styles.pinContent}>
-          <Text style={styles.pinTitleMain}>Set Your PIN Code</Text>
-          <Text style={styles.pinSubtitle}>Create a 6-digit PIN to secure your digital identity.</Text>
+          <Text style={styles.pinTitleMain}>{isConfirm ? "Confirm Your PIN" : "Set Your PIN Code"}</Text>
+          <Text style={styles.pinSubtitle}>
+            {isConfirm ? "Please re-enter your PIN to confirm." : "Create a 6-digit PIN to secure your digital identity."}
+          </Text>
 
           {/* PIN Dots */}
           <View style={styles.pinDotsRow}>
             {[1, 2, 3, 4, 5, 6].map((i) => (
-              <View key={i} style={[styles.pinDotCircle, pin.length >= i ? styles.pinDotFilled : null]} />
+              <View key={i} style={[styles.pinDotCircle, currentPin.length >= i ? styles.pinDotFilled : null]} />
             ))}
           </View>
 
           <View style={{flex: 1}} />
 
-          {/* Biometric Toggle Card */}
-          <View style={styles.biometricCard}>
-            <View style={{flexDirection: 'row', alignItems: 'center', gap: 15}}>
-                <View style={styles.faceIdIcon}>
-                    <MaterialIcons name="face" size={24} color="#2563EB" />
+          {/* Biometric Toggle (Only show on Setup) */}
+          {!isConfirm && (
+            <View style={styles.biometricCard}>
+                <View style={{flexDirection: 'row', alignItems: 'center', gap: 15}}>
+                    <View style={styles.faceIdIcon}>
+                        <MaterialIcons name="face" size={24} color="#2563EB" />
+                    </View>
+                    <View>
+                        <Text style={styles.bioTitle}>Enable FaceID</Text>
+                        <Text style={styles.bioSub}>Use biometrics for faster login</Text>
+                    </View>
                 </View>
-                <View>
-                    <Text style={styles.bioTitle}>Enable FaceID</Text>
-                    <Text style={styles.bioSub}>Use biometrics for faster login</Text>
-                </View>
+                <Switch 
+                    value={faceIDEnabled} 
+                    onValueChange={setFaceIDEnabled}
+                    trackColor={{ false: "#767577", true: "#2563EB" }}
+                    thumbColor={"#f4f3f4"}
+                />
             </View>
-            <Switch 
-                value={faceIDEnabled} 
-                onValueChange={setFaceIDEnabled}
-                trackColor={{ false: "#767577", true: "#2563EB" }}
-                thumbColor={"#f4f3f4"}
-            />
-          </View>
+          )}
 
           {/* Keypad */}
           <View style={styles.keypad}>
@@ -165,7 +195,7 @@ export default function RegisterScreen({ onBack, onFinish }: RegisterProps) {
                             {key === 'del' ? (
                                 <Ionicons name="backspace-outline" size={28} color="#0F172A" />
                             ) : key === 'face' ? (
-                                <MaterialIcons name="face" size={32} color="#2563EB" />
+                                <View /> // Placeholder
                             ) : (
                                 <Text style={styles.keyText}>{key}</Text>
                             )}
@@ -192,15 +222,26 @@ export default function RegisterScreen({ onBack, onFinish }: RegisterProps) {
     );
   }
 
-  // Logic to determine Text & Frame Shape
-  const isSelfie = step === 'selfie';
-  const isBack = step === 'back';
-  const isProcessing = step === 'processing';
+  // Determine current mode
+  const isProcessing = step.includes('processing');
+  const isSelfie = step === 'selfie' || step === 'processing_selfie';
+  const isBack = step === 'back' || step === 'processing_back';
 
-  const titleText = isSelfie ? "Selfie with ID" : "Scan National ID";
-  const khmerText = isSelfie ? "ថតរូបជាមួយអត្តសញ្ញាណប័ណ្ណ" : "ស្កេនអត្តសញ្ញាណប័ណ្ណ";
-  const stepText = isSelfie ? "Step 4 of 4" : isBack ? "Step 3 of 4" : "Step 2 of 4";
-  const guideText = isSelfie ? "Face & ID / មុខ និង អត្តសញ្ញាណប័ណ្ណ" : (isBack ? "Back Side / ផ្នែកខាងក្រោយ" : "Front Side / ផ្នែកខាងមុខ");
+  // Text Logic
+  let titleText = "Scan National ID";
+  let khmerText = "ស្កេនអត្តសញ្ញាណប័ណ្ណ";
+  let guideText = "Front Side / ផ្នែកខាងមុខ";
+  let stepCount = "Step 1 of 3";
+
+  if (isBack) {
+    guideText = "Back Side / ផ្នែកខាងក្រោយ";
+    stepCount = "Step 2 of 3";
+  } else if (isSelfie) {
+    titleText = "Selfie with ID";
+    khmerText = "ថតរូបជាមួយអត្តសញ្ញាណប័ណ្ណ";
+    guideText = "Face & ID / មុខ និង អត្តសញ្ញាណប័ណ្ណ";
+    stepCount = "Step 3 of 3";
+  }
 
   return (
     <SafeAreaView style={styles.container}>
@@ -210,21 +251,21 @@ export default function RegisterScreen({ onBack, onFinish }: RegisterProps) {
       <View style={styles.cameraSection}>
         <Text style={styles.titleMain}>{titleText}</Text>
         <Text style={styles.titleKhmer}>{khmerText}</Text>
-        <Text style={styles.stepText}>{stepText}</Text>
+        <Text style={styles.stepText}>{stepCount}</Text>
 
         <View style={styles.cameraContainer}>
-            {/* If Processing, Show Blur + Spinner */}
+            
+            {/* --- PROCESSING VIEW (BLACK LOADING SCREEN) --- */}
             {isProcessing ? (
                 <View style={styles.processingContainer}>
-                    {/* Simulated blurred background image */}
-                    <View style={[styles.cameraView, {backgroundColor: '#1e293b'}]}>
-                        <ActivityIndicator size="large" color="#2563EB" style={{transform: [{scale: 2}]}} />
-                    </View>
+                    <ActivityIndicator size="large" color="#2563EB" style={{transform: [{scale: 1.5}], marginBottom: 20}} />
                     <Text style={styles.processingTitle}>Processing</Text>
                     <Text style={styles.processingSub}>Verifying information...</Text>
                     <Text style={styles.processingKhmer}>ផ្ទៀងផ្ទាត់ព័ត៌មាន</Text>
                 </View>
             ) : (
+                
+            /* --- CAMERA VIEW --- */
                 <View style={styles.cameraCard}>
                     <CameraView
                         ref={cameraRef}
@@ -235,6 +276,7 @@ export default function RegisterScreen({ onBack, onFinish }: RegisterProps) {
                     
                     {/* Overlay Mask */}
                     <View style={styles.overlayContainer}>
+                        {/* Dark Gradient Overlay */}
                         <View style={StyleSheet.absoluteFillObject} pointerEvents="none">
                             <LinearGradient
                                 colors={['rgba(0,0,0,0.6)', 'transparent', 'rgba(0,0,0,0.6)']}
@@ -247,13 +289,11 @@ export default function RegisterScreen({ onBack, onFinish }: RegisterProps) {
                             styles.frame, 
                             isSelfie ? styles.circleFrame : styles.rectFrame
                         ]}>
-                            {/* Corners */}
                             <View style={[styles.corner, styles.topLeft]} />
                             <View style={[styles.corner, styles.topRight]} />
                             <View style={[styles.corner, styles.bottomLeft]} />
                             <View style={[styles.corner, styles.bottomRight]} />
                             
-                            {/* Guide Label Pill */}
                             {!isSelfie && (
                                 <View style={styles.guidePill}>
                                     <Text style={styles.guidePillText}>{guideText}</Text>
@@ -265,6 +305,7 @@ export default function RegisterScreen({ onBack, onFinish }: RegisterProps) {
             )}
         </View>
 
+        {/* HINT & CONTROLS (Only show when NOT processing) */}
         {!isProcessing && (
             <>
                 <View style={styles.hintContainer}>
@@ -314,7 +355,6 @@ const styles = StyleSheet.create({
     paddingHorizontal: 20, paddingTop: Platform.OS === 'android' ? 40 : 10, marginBottom: 10
   },
   headerTitleDark: { fontSize: 16, fontWeight: '700', color: '#0F172A' },
-  skipText: { fontSize: 16, color: '#2563EB', fontWeight: '600' },
   
   // Pagination Dots
   paginationContainer: { flexDirection: 'row', gap: 6, marginTop: 5 },
@@ -327,18 +367,23 @@ const styles = StyleSheet.create({
   titleKhmer: { fontSize: 16, color: '#475569', marginTop: 4, fontFamily: Platform.OS === 'ios' ? 'Khmer Sangam MN' : 'serif' },
   stepText: { fontSize: 12, color: '#64748B', marginTop: 4, marginBottom: 20 },
 
-  // Camera Card
+  // Camera Card & Processing
   cameraContainer: { width: width, alignItems: 'center', justifyContent: 'center' },
   cameraCard: {
-    width: '90%', height: 240, borderRadius: 20, overflow: 'hidden', backgroundColor: 'black',
+    width: '90%', height: 260, borderRadius: 20, overflow: 'hidden', backgroundColor: 'black',
     elevation: 5, shadowColor: '#000', shadowOpacity: 0.2, shadowRadius: 10
   },
   processingContainer: {
-    width: '90%', height: 240, borderRadius: 20, backgroundColor: '#0f172a',
-    justifyContent: 'center', alignItems: 'center', padding: 20
+    width: '90%', height: 260, borderRadius: 20, backgroundColor: '#020617', // Dark Black/Blue
+    justifyContent: 'center', alignItems: 'center', padding: 20,
+    borderWidth: 1, borderColor: '#1e293b'
   },
-  cameraView: { width: '100%', height: '100%' },
   
+  // Processing Text
+  processingTitle: { color: 'white', fontSize: 20, fontWeight: 'bold', marginTop: 10 },
+  processingSub: { color: '#94a3b8', fontSize: 14, marginTop: 5 },
+  processingKhmer: { color: '#64748b', fontSize: 14, marginTop: 2, fontFamily: Platform.OS === 'ios' ? 'Khmer Sangam MN' : 'serif' },
+
   // Overlay
   overlayContainer: { flex: 1, justifyContent: 'center', alignItems: 'center' },
   frame: { borderColor: 'rgba(255,255,255,0.3)', borderWidth: 1 },
@@ -352,17 +397,11 @@ const styles = StyleSheet.create({
   bottomLeft: { bottom: -2, left: -2, borderRightWidth: 0, borderTopWidth: 0 },
   bottomRight: { bottom: -2, right: -2, borderLeftWidth: 0, borderTopWidth: 0 },
 
-  // Guide Pill
   guidePill: {
     position: 'absolute', alignSelf: 'center', top: '45%',
     backgroundColor: 'rgba(0,0,0,0.6)', paddingHorizontal: 15, paddingVertical: 6, borderRadius: 20
   },
   guidePillText: { color: 'white', fontSize: 12, fontWeight: '600' },
-
-  // Processing Text
-  processingTitle: { color: 'white', fontSize: 18, fontWeight: 'bold', marginTop: 20 },
-  processingSub: { color: '#94a3b8', fontSize: 14, marginTop: 5 },
-  processingKhmer: { color: '#64748b', fontSize: 14, marginTop: 2, fontFamily: Platform.OS === 'ios' ? 'Khmer Sangam MN' : 'serif' },
 
   // Hints
   hintContainer: { flexDirection: 'row', alignItems: 'center', marginTop: 20, marginBottom: 5 },
@@ -370,7 +409,6 @@ const styles = StyleSheet.create({
   hintText: { fontSize: 12, color: '#64748B', textAlign: 'center' },
   hintTextKhmer: { fontSize: 12, color: '#64748B', textAlign: 'center', fontFamily: Platform.OS === 'ios' ? 'Khmer Sangam MN' : 'serif' },
 
-  // Bottom Controls
   bottomControls: {
     flexDirection: 'row', width: '100%', justifyContent: 'space-evenly', alignItems: 'center',
     position: 'absolute', bottom: 30
@@ -378,19 +416,16 @@ const styles = StyleSheet.create({
   controlItem: { alignItems: 'center' },
   circleBtnSmall: { width: 45, height: 45, borderRadius: 25, backgroundColor: '#E2E8F0', justifyContent: 'center', alignItems: 'center', marginBottom: 4 },
   controlLabel: { fontSize: 11, color: '#64748B' },
-  
   shutterOuter: { width: 72, height: 72, borderRadius: 36, borderWidth: 4, borderColor: '#2563EB', padding: 4 },
   shutterInner: { flex: 1, borderRadius: 32, backgroundColor: 'transparent', borderWidth: 2, borderColor: '#2563EB' },
 
-  // --- PIN SCREEN STYLES ---
+  // PIN Styles
   pinContent: { flex: 1, paddingHorizontal: 30, paddingTop: 20 },
   pinTitleMain: { fontSize: 24, fontWeight: 'bold', color: '#0F172A', textAlign: 'center' },
   pinSubtitle: { fontSize: 14, color: '#64748B', textAlign: 'center', marginTop: 10, marginBottom: 30 },
-  
   pinDotsRow: { flexDirection: 'row', justifyContent: 'center', gap: 15, marginBottom: 40 },
   pinDotCircle: { width: 16, height: 16, borderRadius: 8, borderWidth: 1, borderColor: '#94A3B8' },
   pinDotFilled: { backgroundColor: '#2563EB', borderColor: '#2563EB' },
-
   biometricCard: {
     flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center',
     backgroundColor: 'white', padding: 15, borderRadius: 16,
@@ -399,7 +434,6 @@ const styles = StyleSheet.create({
   faceIdIcon: { width: 40, height: 40, borderRadius: 10, backgroundColor: '#EFF6FF', justifyContent: 'center', alignItems: 'center' },
   bioTitle: { fontSize: 16, fontWeight: '600', color: '#0F172A' },
   bioSub: { fontSize: 12, color: '#64748B' },
-
   keypad: { marginBottom: 30 },
   keyRow: { flexDirection: 'row', justifyContent: 'space-between', marginBottom: 20, paddingHorizontal: 10 },
   keyButton: { width: 70, height: 70, justifyContent: 'center', alignItems: 'center' },
