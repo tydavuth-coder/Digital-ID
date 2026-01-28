@@ -1,23 +1,25 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { 
   StyleSheet, Text, View, Animated, Easing, Dimensions, 
-  Alert, Vibration, StatusBar, TouchableOpacity, SafeAreaView, Platform, ActivityIndicator, Linking 
+  Alert, Vibration, StatusBar, TouchableOpacity, SafeAreaView, Platform, ActivityIndicator 
 } from 'react-native';
-import { CameraView, CameraType, useCameraPermissions } from 'expo-camera'; // ✅ Added useCameraPermissions
+import { CameraView, CameraType, useCameraPermissions } from 'expo-camera';
 import * as ImagePicker from 'expo-image-picker';
 import { authorizeDashboardSession } from '../api/auth';
 import { LinearGradient } from 'expo-linear-gradient';
-import { Ionicons, MaterialIcons } from '@expo/vector-icons';
+import { Ionicons, MaterialIcons, Feather } from '@expo/vector-icons';
 
 const { width } = Dimensions.get('window');
-const CAMERA_HEIGHT = width * 0.65;
+// Card Ratio ដូចក្នុងរូបភាព
 const CAMERA_WIDTH = width * 0.9;
-const STATUSBAR_HEIGHT = Platform.OS === 'android' ? StatusBar.currentHeight || 24 : 0;
+const CAMERA_HEIGHT = CAMERA_WIDTH * 0.75; 
 
-export default function SyncScreen() {
-  // ✅ ប្រើ Hook ជំនួសឱ្យ useEffect ដើម្បីគ្រប់គ្រង Permission
+interface SyncScreenProps {
+  onBack?: () => void;
+}
+
+export default function SyncScreen({ onBack }: SyncScreenProps) {
   const [permission, requestPermission] = useCameraPermissions();
-  
   const [scanned, setScanned] = useState(false);
   const [loading, setLoading] = useState(false);
   const [torchOn, setTorchOn] = useState(false);
@@ -35,13 +37,13 @@ export default function SyncScreen() {
       Animated.sequence([
         Animated.timing(scanLineAnim, {
           toValue: 1,
-          duration: 2000,
+          duration: 2500,
           easing: Easing.inOut(Easing.ease),
           useNativeDriver: true,
         }),
         Animated.timing(scanLineAnim, {
           toValue: 0,
-          duration: 2000,
+          duration: 2500,
           easing: Easing.inOut(Easing.ease),
           useNativeDriver: true,
         }),
@@ -59,7 +61,7 @@ export default function SyncScreen() {
     try {
       await authorizeDashboardSession(data);
       Alert.alert("✅ ជោគជ័យ", "បានភ្ជាប់ទៅ Dashboard រួចរាល់!", [
-        { text: "OK", onPress: () => { setScanned(false); setLoading(false); } }
+        { text: "OK", onPress: () => { setScanned(false); setLoading(false); onBack && onBack(); } }
       ]);
     } catch (error) {
       Alert.alert("❌ បរាជ័យ", "QR Code មិនត្រឹមត្រូវ", [
@@ -81,31 +83,13 @@ export default function SyncScreen() {
     setFacing(current => (current === 'back' ? 'front' : 'back'));
   };
 
-  // 1. Loading Permission State
-  if (!permission) {
-    // Permission មិនទាន់ Load ចប់
-    return (
-      <View style={[styles.container, styles.center]}>
-        <ActivityIndicator size="large" color="#3b82f6" />
-        <Text style={styles.permissionText}>កំពុងដំណើរការ...</Text>
-      </View>
-    );
-  }
-
-  // 2. Permission Not Granted State
+  if (!permission) return <View style={styles.loadingContainer}><ActivityIndicator color="#2563EB"/></View>;
   if (!permission.granted) {
     return (
-      <View style={[styles.container, styles.center]}>
-        <Ionicons name="camera-outline" size={64} color="#64748b" />
-        <Text style={styles.permissionTitle}>ត្រូវការប្រើប្រាស់កាមេរ៉ា</Text>
-        <Text style={styles.permissionText}>ដើម្បីស្កេន QR Code សូមអនុញ្ញាតឱ្យប្រើកាមេរ៉ា</Text>
-        
-        <TouchableOpacity style={styles.settingBtn} onPress={requestPermission}>
-          <Text style={styles.settingBtnText}>អនុញ្ញាត (Allow)</Text>
-        </TouchableOpacity>
-
-        <TouchableOpacity style={[styles.settingBtn, { marginTop: 10, backgroundColor: 'transparent' }]} onPress={() => Linking.openSettings()}>
-          <Text style={[styles.settingBtnText, { color: '#3b82f6' }]}>បើក Settings</Text>
+      <View style={styles.loadingContainer}>
+        <Text style={{marginBottom: 20}}>ត្រូវការសិទ្ធិកាមេរ៉ា</Text>
+        <TouchableOpacity style={styles.permBtn} onPress={requestPermission}>
+          <Text style={{color: 'white'}}>អនុញ្ញាត</Text>
         </TouchableOpacity>
       </View>
     );
@@ -118,119 +102,112 @@ export default function SyncScreen() {
 
   return (
     <SafeAreaView style={styles.container}>
-      <StatusBar barStyle="dark-content" backgroundColor="#F5F7FA" translucent />
+      <StatusBar barStyle="dark-content" backgroundColor="#FFFFFF" />
       
-      <View style={styles.contentContainer}>
-        
-        {/* Header */}
-        <View style={styles.header}>
-          <TouchableOpacity style={styles.backButton}>
-            <Ionicons name="arrow-back" size={24} color="#1e293b" />
+      {/* 1. Header */}
+      <View style={styles.header}>
+        {onBack && (
+          <TouchableOpacity onPress={onBack} style={styles.iconBtn}>
+            <Ionicons name="arrow-back" size={24} color="#1E293B" />
           </TouchableOpacity>
-          <Text style={styles.headerTitle}>Sync Device</Text>
-          <TouchableOpacity onPress={() => setTorchOn(!torchOn)}>
-            <Ionicons name={torchOn ? "flash" : "flash-off"} size={24} color="#1e293b" />
-          </TouchableOpacity>
-        </View>
+        )}
+        <Text style={styles.headerTitle}>Sync Device</Text>
+        <TouchableOpacity onPress={() => setTorchOn(!torchOn)} style={styles.iconBtn}>
+          <Ionicons name={torchOn ? "flash" : "flash-off"} size={24} color={torchOn ? "#F59E0B" : "#1E293B"} />
+        </TouchableOpacity>
+      </View>
 
-        {/* Progress Dots */}
-        <View style={styles.progressContainer}>
-          <View style={[styles.dot, styles.activeDot]} />
-          <View style={styles.dot} />
-          <View style={styles.dot} />
-        </View>
+      {/* 2. Title & Subtitle */}
+      <View style={styles.textSection}>
+        <Text style={styles.mainTitle}>Scan QR Login</Text>
+        <Text style={styles.subTitle}>ស្កេន QR Code ដើម្បីចូលប្រើ</Text>
+        <Text style={styles.stepTitle}>Step 1 of 1</Text>
+      </View>
 
-        {/* Titles */}
-        <View style={styles.textContainer}>
-          <Text style={styles.mainTitle}>Scan QR Login</Text>
-          <Text style={styles.khmerTitle}>ស្កេន QR Code ដើម្បីចូលប្រើ</Text>
-          <Text style={styles.stepText}>Step 1 of 1</Text>
-        </View>
+      {/* 3. Camera Card */}
+      <View style={styles.cameraContainer}>
+        <View style={styles.cameraCard}>
+          <CameraView
+            style={StyleSheet.absoluteFillObject}
+            facing={facing}
+            enableTorch={torchOn}
+            onBarcodeScanned={scanned ? undefined : handleBarCodeScanned}
+            barcodeScannerSettings={{ barcodeTypes: ["qr"] }}
+          />
+          
+          {/* Overlay UI */}
+          <View style={styles.overlayLayer}>
+            {/* Corners */}
+            <View style={[styles.corner, styles.topLeft]} />
+            <View style={[styles.corner, styles.topRight]} />
+            <View style={[styles.corner, styles.bottomLeft]} />
+            <View style={[styles.corner, styles.bottomRight]} />
 
-        {/* Camera Card */}
-        <View style={styles.cameraWrapper}>
-          <View style={styles.cameraCard}>
-            <CameraView
-              style={StyleSheet.absoluteFillObject}
-              facing={facing}
-              enableTorch={torchOn}
-              onBarcodeScanned={scanned ? undefined : handleBarCodeScanned}
-              barcodeScannerSettings={{ barcodeTypes: ["qr"] }}
-            />
-            
-            {/* Overlay Inside Camera */}
-            <View style={styles.overlayContainer}>
-              {/* Dark Tint Overlay */}
-              <View style={StyleSheet.absoluteFillObject} pointerEvents="none">
+            {/* Scan Line Animation */}
+            {!scanned && (
+              <Animated.View style={[styles.scanLine, { transform: [{ translateY }] }]}>
                  <LinearGradient
-                    colors={['rgba(0,0,0,0.3)', 'transparent', 'rgba(0,0,0,0.3)']}
-                    style={StyleSheet.absoluteFill}
+                    colors={['transparent', '#3B82F6', 'transparent']}
+                    start={{ x: 0, y: 0 }}
+                    end={{ x: 1, y: 0 }}
+                    style={{ flex: 1, height: 3 }}
                  />
+              </Animated.View>
+            )}
+
+            {/* Loading */}
+            {loading && (
+              <View style={styles.loadingOverlay}>
+                <ActivityIndicator size="large" color="#FFFFFF" />
+                <Text style={styles.loadingText}>Processing...</Text>
               </View>
-
-              {/* Blue Corners */}
-              <View style={[styles.corner, styles.topLeft]} />
-              <View style={[styles.corner, styles.topRight]} />
-              <View style={[styles.corner, styles.bottomLeft]} />
-              <View style={[styles.corner, styles.bottomRight]} />
-
-              {/* Scan Line */}
-              {!scanned && (
-                <Animated.View style={[styles.scanLine, { transform: [{ translateY }] }]}>
-                   <LinearGradient
-                      colors={['transparent', '#3b82f6', 'transparent']}
-                      start={{ x: 0, y: 0 }}
-                      end={{ x: 1, y: 0 }}
-                      style={{ flex: 1, height: 2 }}
-                   />
-                </Animated.View>
-              )}
-
-              {/* Loading Spinner inside camera */}
-              {loading && (
-                <View style={styles.loadingOverlay}>
-                  <ActivityIndicator size="large" color="#fff" />
-                  <Text style={styles.loadingText}>Processing...</Text>
-                </View>
-              )}
-            </View>
+            )}
           </View>
         </View>
+      </View>
 
-        {/* Hint Text */}
-        <View style={styles.hintContainer}>
-          <MaterialIcons name="wb-sunny" size={20} color="#3b82f6" />
-          <Text style={styles.hintText}>Lighting Check</Text>
+      {/* 4. Lighting Check Hint */}
+      <View style={styles.hintSection}>
+        <View style={styles.hintHeader}>
+          <MaterialIcons name="wb-sunny" size={20} color="#2563EB" />
+          <Text style={styles.hintTitle}>Lighting Check</Text>
         </View>
-        <Text style={styles.hintSubText}>
+        <Text style={styles.hintText}>
           Make sure the lighting is good and the QR code is clear.
         </Text>
-        <Text style={[styles.hintSubText, { fontFamily: Platform.OS === 'ios' ? 'Khmer Sangam MN' : 'serif' }]}>
+        <Text style={styles.hintTextKhmer}>
           សូមប្រាកដថាពន្លឺគ្រប់គ្រាន់ និងកូដច្បាស់ល្អ
         </Text>
+      </View>
 
-        {/* Bottom Controls */}
-        <View style={styles.bottomControls}>
-          
-          {/* Upload Button */}
-          <TouchableOpacity style={styles.controlBtnSmall} onPress={pickImage}>
-            <Ionicons name="images-outline" size={24} color="#64748b" />
-            <Text style={styles.btnLabel}>Upload</Text>
-          </TouchableOpacity>
+      {/* 5. Bottom Controls (Upload, Shutter, Flip) */}
+      <View style={styles.bottomControls}>
+        
+        {/* Upload */}
+        <TouchableOpacity style={styles.controlItem} onPress={pickImage}>
+          <View style={styles.circleBtnSmall}>
+            <Ionicons name="image-outline" size={24} color="#64748B" />
+          </View>
+          <Text style={styles.controlLabel}>Upload</Text>
+        </TouchableOpacity>
 
-          {/* Shutter Button (Visual) */}
+        {/* Fake Shutter (Visual only) */}
+        <View style={styles.shutterContainer}>
           <View style={styles.shutterOuter}>
             <View style={styles.shutterInner} />
           </View>
-
-          {/* Flip Camera Button */}
-          <TouchableOpacity style={styles.controlBtnSmall} onPress={toggleCameraFacing}>
-            <Ionicons name="camera-reverse-outline" size={26} color="#64748b" />
-            <Text style={styles.btnLabel}>Flip</Text>
-          </TouchableOpacity>
-
         </View>
+
+        {/* Flip */}
+        <TouchableOpacity style={styles.controlItem} onPress={toggleCameraFacing}>
+          <View style={styles.circleBtnSmall}>
+            <Ionicons name="camera-reverse-outline" size={24} color="#64748B" />
+          </View>
+          <Text style={styles.controlLabel}>Flip</Text>
+        </TouchableOpacity>
+
       </View>
+
     </SafeAreaView>
   );
 }
@@ -238,44 +215,17 @@ export default function SyncScreen() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#F5F7FA',
-    paddingTop: STATUSBAR_HEIGHT,
+    backgroundColor: '#FFFFFF',
   },
-  contentContainer: {
-    flex: 1,
-  },
-  center: {
+  loadingContainer: {
     flex: 1,
     justifyContent: 'center',
     alignItems: 'center',
-    padding: 20,
   },
-  
-  // Permission Styles
-  permissionTitle: {
-    fontSize: 20,
-    fontWeight: 'bold',
-    color: '#0f172a',
-    marginTop: 20,
-  },
-  permissionText: {
-    fontSize: 14,
-    color: '#64748b',
-    marginTop: 10,
-    marginBottom: 20,
-    textAlign: 'center',
-  },
-  settingBtn: {
-    paddingHorizontal: 30,
-    paddingVertical: 12,
-    backgroundColor: '#3b82f6',
+  permBtn: {
+    backgroundColor: '#2563EB',
+    padding: 10,
     borderRadius: 8,
-    elevation: 2,
-  },
-  settingBtnText: {
-    color: 'white',
-    fontWeight: '600',
-    fontSize: 16,
   },
 
   // Header
@@ -284,76 +234,65 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
     alignItems: 'center',
     paddingHorizontal: 20,
-    paddingVertical: 15,
-  },
-  backButton: {
-    padding: 5,
+    paddingTop: Platform.OS === 'android' ? 40 : 10,
+    marginBottom: 20,
   },
   headerTitle: {
-    fontSize: 16,
-    fontWeight: '600',
-    color: '#1e293b',
+    fontSize: 18,
+    fontWeight: '700',
+    color: '#0F172A',
+  },
+  iconBtn: {
+    padding: 8,
   },
 
-  // Progress Dots
-  progressContainer: {
-    flexDirection: 'row',
-    justifyContent: 'center',
-    gap: 8,
-    marginBottom: 20,
-  },
-  dot: {
-    width: 8,
-    height: 8,
-    borderRadius: 4,
-    backgroundColor: '#cbd5e1',
-  },
-  activeDot: {
-    backgroundColor: '#3b82f6',
-    width: 20,
-  },
-
-  // Texts
-  textContainer: {
+  // Text Section
+  textSection: {
     alignItems: 'center',
-    marginBottom: 20,
+    marginBottom: 30,
   },
   mainTitle: {
     fontSize: 24,
-    fontWeight: 'bold',
-    color: '#0f172a',
+    fontWeight: '800',
+    color: '#0F172A',
     marginBottom: 4,
   },
-  khmerTitle: {
-    fontSize: 18,
+  subTitle: {
+    fontSize: 16,
     color: '#334155',
-    marginBottom: 6,
+    marginBottom: 8,
+    fontFamily: Platform.OS === 'ios' ? 'Khmer Sangam MN' : 'serif',
   },
-  stepText: {
+  stepTitle: {
     fontSize: 12,
-    color: '#64748b',
+    color: '#94A3B8',
+    fontWeight: '600',
   },
 
-  // Camera Card Area
-  cameraWrapper: {
+  // Camera Area
+  cameraContainer: {
     alignItems: 'center',
-    justifyContent: 'center',
   },
   cameraCard: {
     width: CAMERA_WIDTH,
     height: CAMERA_HEIGHT,
-    borderRadius: 20,
+    borderRadius: 24,
     overflow: 'hidden',
     backgroundColor: '#000',
-    elevation: 10, 
+    // Shadow
     shadowColor: '#000',
     shadowOffset: { width: 0, height: 10 },
-    shadowOpacity: 0.2,
-    shadowRadius: 15,
+    shadowOpacity: 0.15,
+    shadowRadius: 20,
+    elevation: 8,
   },
-  overlayContainer: {
+  overlayLayer: {
     flex: 1,
     position: 'relative',
+  },
+  scanLine: {
+    width: '100%',
+    height: 3,
   },
   
   // Corners
@@ -361,94 +300,104 @@ const styles = StyleSheet.create({
     position: 'absolute',
     width: 30,
     height: 30,
-    borderColor: '#3b82f6',
+    borderColor: '#3B82F6',
     borderWidth: 4,
     borderRadius: 6,
   },
-  topLeft: { top: 15, left: 15, borderRightWidth: 0, borderBottomWidth: 0 },
-  topRight: { top: 15, right: 15, borderLeftWidth: 0, borderBottomWidth: 0 },
-  bottomLeft: { bottom: 15, left: 15, borderRightWidth: 0, borderTopWidth: 0 },
-  bottomRight: { bottom: 15, right: 15, borderLeftWidth: 0, borderTopWidth: 0 },
+  topLeft: { top: 20, left: 20, borderRightWidth: 0, borderBottomWidth: 0 },
+  topRight: { top: 20, right: 20, borderLeftWidth: 0, borderBottomWidth: 0 },
+  bottomLeft: { bottom: 20, left: 20, borderRightWidth: 0, borderTopWidth: 0 },
+  bottomRight: { bottom: 20, right: 20, borderLeftWidth: 0, borderTopWidth: 0 },
 
-  // Scan Line
-  scanLine: {
-    width: '100%',
-    height: 2,
-  },
-
-  // Loading Overlay inside Camera
+  // Loading Overlay
   loadingOverlay: {
     ...StyleSheet.absoluteFillObject,
-    backgroundColor: 'rgba(0,0,0,0.6)',
+    backgroundColor: 'rgba(0,0,0,0.7)',
     justifyContent: 'center',
     alignItems: 'center',
   },
   loadingText: {
     color: 'white',
-    fontSize: 14,
-    fontWeight: '600',
     marginTop: 10,
+    fontWeight: '600',
   },
 
-  // Hints
-  hintContainer: {
-    flexDirection: 'row',
-    justifyContent: 'center',
+  // Hint Section
+  hintSection: {
+    marginTop: 30,
     alignItems: 'center',
-    marginTop: 25,
+    paddingHorizontal: 40,
+  },
+  hintHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
     marginBottom: 8,
   },
-  hintText: {
-    color: '#0f172a',
-    fontWeight: '600',
+  hintTitle: {
+    fontSize: 14,
+    fontWeight: '700',
+    color: '#0F172A',
     marginLeft: 6,
   },
-  hintSubText: {
-    textAlign: 'center',
-    color: '#64748b',
+  hintText: {
     fontSize: 12,
-    paddingHorizontal: 40,
-    lineHeight: 18,
+    color: '#64748B',
+    textAlign: 'center',
+    marginBottom: 4,
+  },
+  hintTextKhmer: {
+    fontSize: 12,
+    color: '#64748B',
+    textAlign: 'center',
+    fontFamily: Platform.OS === 'ios' ? 'Khmer Sangam MN' : 'serif',
   },
 
   // Bottom Controls
   bottomControls: {
     flexDirection: 'row',
-    justifyContent: 'space-evenly',
+    justifyContent: 'space-around',
     alignItems: 'center',
-    marginTop: 'auto', // Push to bottom
-    marginBottom: 30,
+    position: 'absolute',
+    bottom: 40,
+    left: 20,
+    right: 20,
   },
-  controlBtnSmall: {
+  controlItem: {
     alignItems: 'center',
+  },
+  circleBtnSmall: {
+    width: 50,
+    height: 50,
+    borderRadius: 25,
+    backgroundColor: '#F1F5F9',
     justifyContent: 'center',
-    width: 60,
+    alignItems: 'center',
+    marginBottom: 6,
   },
-  btnLabel: {
-    fontSize: 10,
-    color: '#64748b',
-    marginTop: 4,
+  controlLabel: {
+    fontSize: 12,
+    color: '#64748B',
+    fontWeight: '500',
   },
   
-  // Big Center Button (Visual)
+  // Shutter Button
+  shutterContainer: {
+    marginTop: -20, // Push up slightly
+  },
   shutterOuter: {
-    width: 70,
-    height: 70,
-    borderRadius: 35,
+    width: 72,
+    height: 72,
+    borderRadius: 36,
     borderWidth: 4,
-    borderColor: '#3b82f6',
+    borderColor: '#3B82F6',
+    padding: 4,
     justifyContent: 'center',
     alignItems: 'center',
-    backgroundColor: 'transparent',
   },
   shutterInner: {
-    width: 58,
-    height: 58,
-    borderRadius: 29,
-    backgroundColor: '#fff', 
-    elevation: 2,
-    shadowColor: '#000',
-    shadowOpacity: 0.1,
-    shadowRadius: 4,
+    flex: 1,
+    width: '100%',
+    borderRadius: 30,
+    backgroundColor: '#3B82F6',
   },
 });
