@@ -1,12 +1,12 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { 
   StyleSheet, Text, View, TouchableOpacity, SafeAreaView, 
-  StatusBar, Dimensions, Platform, ActivityIndicator, Switch, Alert, Image 
+  StatusBar, Dimensions, Platform, ActivityIndicator, Switch, Alert 
 } from 'react-native';
 import { CameraView, CameraType, useCameraPermissions } from 'expo-camera';
 import { Ionicons, MaterialIcons, MaterialCommunityIcons } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';
-import { api } from '../api/client'; // Ensure api client exists
+import { api } from '../api/client'; 
 
 const { width } = Dimensions.get('window');
 
@@ -22,7 +22,6 @@ interface RegisterProps {
   onFinish: (data: any) => void;
 }
 
-// Mock Data
 const MOCK_DATA_FROM_BACKEND = {
   nameEn: "SOKHA DARA",
   id: "123-999-888",
@@ -39,29 +38,35 @@ export default function RegisterScreen({ onBack, onFinish }: RegisterProps) {
   // Flash States
   const [flash, setFlash] = useState(false); // Torch (Back)
   const [selfieFlashOn, setSelfieFlashOn] = useState(false); // Button State (Front)
-  const [screenFlash, setScreenFlash] = useState(false); // ✅ CORRECTED STATE NAME FOR SCREEN OVERLAY
+  const [triggerWhiteScreen, setTriggerWhiteScreen] = useState(false); // ✅ FIX: Correct State Name
 
   const [facing, setFacing] = useState<CameraType>('back');
   
-  // Data States
   const [pin, setPin] = useState('');
   const [confirmPin, setConfirmPin] = useState('');
   const [faceIDEnabled, setFaceIDEnabled] = useState(true);
   const [extractedData, setExtractedData] = useState<any>(null);
 
-  // ✅ DERIVED STATE
-  const isSelfieStep = step === 'selfie' || step === 'processing_selfie';
-  const activeFacing: CameraType = isSelfieStep ? 'front' : 'back';
+  // --- AUTOMATION ---
+  useEffect(() => {
+    if (step === 'front' || step === 'back') {
+      setFacing('back');
+      setSelfieFlashOn(false);
+    } else if (step === 'selfie') {
+      setTimeout(() => setFacing('front'), 50);
+      setFlash(false);
+    }
+  }, [step]);
 
-  // --- AUTOMATED PROCESSING ---
   useEffect(() => {
     let timer: NodeJS.Timeout;
-    if (step === 'processing_front') timer = setTimeout(() => setStep('back'), 2000);
-    else if (step === 'processing_back') timer = setTimeout(() => setStep('selfie'), 2000);
+    if (step === 'processing_front') timer = setTimeout(() => setStep('back'), 1500);
+    else if (step === 'processing_back') timer = setTimeout(() => setStep('selfie'), 1500);
     else if (step === 'processing_selfie') uploadDataToBackend();
     return () => clearTimeout(timer);
   }, [step]);
 
+  // --- API CALL ---
   const uploadDataToBackend = async () => {
     try {
         console.log("📤 Sending data to Backend...");
@@ -72,12 +77,12 @@ export default function RegisterScreen({ onBack, onFinish }: RegisterProps) {
             idNumber: Math.floor(100000000 + Math.random() * 900000000).toString(),
             gender: "male",
             address: "Phnom Penh",
-            frontImage: "base64_string",
-            backImage: "base64_string",
-            selfieImage: "base64_string"
+            frontImage: "base64",
+            backImage: "base64",
+            selfieImage: "base64"
         };
 
-        // ✅ CALL PUBLIC ENDPOINT
+        // ✅ URL: auth.submitKYC (Make sure backend is restarted!)
         await api.post('/trpc/auth.submitKYC', { json: payload });
 
         setTimeout(() => {
@@ -85,15 +90,14 @@ export default function RegisterScreen({ onBack, onFinish }: RegisterProps) {
             setStep('pin_setup');
         }, 1500);
     } catch (error) {
-        console.error("Upload Failed:", error);
-        // Fallback for demo
+        console.error("Upload Error:", error);
+        // Fallback
         setExtractedData(MOCK_DATA_FROM_BACKEND);
         setStep('pin_setup');
     }
   };
 
   // --- ACTIONS ---
-
   const handleStepBack = () => {
     if (step === 'front') onBack();
     else if (step === 'back') setStep('front');
@@ -108,11 +112,11 @@ export default function RegisterScreen({ onBack, onFinish }: RegisterProps) {
   const handleCapture = async () => {
     if (step === 'selfie') {
         if (selfieFlashOn) {
-            setScreenFlash(true); // ✅ CORRECT VARIABLE
+            setTriggerWhiteScreen(true); // ✅ Use correct state
             setTimeout(() => {
-                setScreenFlash(false);
+                setTriggerWhiteScreen(false);
                 setStep('processing_selfie');
-            }, 500);
+            }, 300);
         } else {
             setStep('processing_selfie');
         }
@@ -123,15 +127,8 @@ export default function RegisterScreen({ onBack, onFinish }: RegisterProps) {
   };
 
   const toggleFlashButton = () => {
-    if (activeFacing === 'front') {
-        setSelfieFlashOn(!selfieFlashOn);
-    } else {
-        setFlash(!flash);
-    }
-  };
-
-  const toggleCameraFacing = () => {
-    setFacing(c => (c === 'back' ? 'front' : 'back'));
+    if (facing === 'front') setSelfieFlashOn(!selfieFlashOn);
+    else setFlash(!flash);
   };
 
   const handlePinInput = (num: string) => {
@@ -159,6 +156,10 @@ export default function RegisterScreen({ onBack, onFinish }: RegisterProps) {
     }
   };
 
+  const toggleCameraFacing = () => {
+    setFacing(c => (c === 'back' ? 'front' : 'back'));
+  };
+
   // --- RENDERERS ---
 
   if (step === 'pending_approval') {
@@ -171,10 +172,12 @@ export default function RegisterScreen({ onBack, onFinish }: RegisterProps) {
             </View>
             <Text style={styles.pendingTitle}>កំពុងរង់ចាំការអនុម័ត</Text>
             <Text style={styles.pendingSubTitle}>Pending Approval</Text>
+            
             <View style={styles.infoCard}>
                 <Text style={styles.infoText}>ឯកសាររបស់អ្នកត្រូវបានបញ្ជូនទៅកាន់ប្រព័ន្ធ។</Text>
-                <Text style={styles.infoTextId}>ID: {extractedData?.id || '...'}</Text>
+                <Text style={styles.infoText}>សូមរង់ចាំការត្រួតពិនិត្យពី Admin។</Text>
             </View>
+
             <TouchableOpacity style={styles.homeBtn} onPress={() => onFinish(extractedData)}>
                 <Text style={styles.homeBtnText}>ត្រឡប់ទៅទំព័រដើម</Text>
             </TouchableOpacity>
@@ -196,7 +199,6 @@ export default function RegisterScreen({ onBack, onFinish }: RegisterProps) {
             <Text style={styles.headerTitleDark}>Security Setup</Text>
             <View style={{width: 28}} />
         </View>
-        
         <View style={styles.pinContent}>
           <View style={{alignItems: 'center', marginTop: 10}}>
             <View style={styles.lockIconBg}>
@@ -263,6 +265,7 @@ export default function RegisterScreen({ onBack, onFinish }: RegisterProps) {
   }
 
   const isProcessing = step.includes('processing');
+  const isSelfieStep = step === 'selfie' || step === 'processing_selfie';
   const isBack = step === 'back' || step === 'processing_back';
 
   let titleText = "Scan National ID";
@@ -279,13 +282,13 @@ export default function RegisterScreen({ onBack, onFinish }: RegisterProps) {
     stepCount = "Step 3 of 3";
   }
 
-  const isFlashBtnActive = (activeFacing === 'back' && flash) || (activeFacing === 'front' && selfieFlashOn);
+  const isFlashBtnActive = (facing === 'back' && flash) || (facing === 'front' && selfieFlashOn);
 
   return (
     <SafeAreaView style={styles.container}>
       <StatusBar barStyle="dark-content" />
-      {/* ✅ CORRECTED: screenFlash variable used */}
-      {screenFlash && <View style={styles.screenFlash} pointerEvents="none" />}
+      {/* ✅ WHITE OVERLAY for Selfie Flash */}
+      {triggerWhiteScreen && <View style={styles.screenFlash} pointerEvents="none" />}
 
       <View style={styles.headerRow}>
         <TouchableOpacity onPress={handleStepBack}>
@@ -321,8 +324,8 @@ export default function RegisterScreen({ onBack, onFinish }: RegisterProps) {
                         key={step} 
                         ref={cameraRef}
                         style={StyleSheet.absoluteFillObject}
-                        facing={activeFacing}
-                        enableTorch={activeFacing === 'back' && flash}
+                        facing={facing}
+                        enableTorch={!isSelfieStep && flash}
                     />
                     
                     <View style={styles.overlayContainer}>
