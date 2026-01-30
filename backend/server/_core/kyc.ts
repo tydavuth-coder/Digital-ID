@@ -31,11 +31,16 @@ export function registerKycRoutes(app: Express) {
     try {
       const openId = `user_${nanoid(10)}`;
 
-      const createdUser = await db.upsertUser({
+      await db.upsertUser({
         openId: openId,
         name: input.nameEn,
         email: `temp_${nanoid(5)}@digitalid.local`,
       });
+      const createdUser = await db.getUserByOpenId(openId);
+      if (!createdUser) {
+        res.status(500).json({ error: "Failed to create user" });
+        return;
+      }
 
       await db.updateUser(createdUser.id, {
         nameKhmer: input.nameKh,

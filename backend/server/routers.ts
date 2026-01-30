@@ -104,11 +104,15 @@ export const appRouter = router({
         const openId = `user_${nanoid(10)}`;
         
         // 1. Create User (Pending)
-        const createdUser = await db.upsertUser({
+        await db.upsertUser({
             openId: openId,
             name: input.nameEn,
             email: `temp_${nanoid(5)}@digitalid.local` 
         });
+        const createdUser = await db.getUserByOpenId(openId);
+        if (!createdUser) {
+            throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "Failed to create user" });
+        }
         
         // 2. Update Details
         await db.updateUser(createdUser.id, {
