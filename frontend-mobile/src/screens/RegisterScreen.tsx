@@ -6,7 +6,8 @@ import {
 import { CameraView, CameraType, useCameraPermissions } from 'expo-camera';
 import { Ionicons, MaterialIcons, MaterialCommunityIcons } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';
-import { api } from '../api/client'; 
+import axios from 'axios';
+import { api, getApiBaseUrls } from '../api/client'; 
 
 const { width } = Dimensions.get('window');
 
@@ -80,28 +81,57 @@ export default function RegisterScreen({ onBack, onFinish }: RegisterProps) {
         backImage: "base64",
         selfieImage: "base64",
       };
-       let restErrorDetails: { status?: number; data?: unknown } | null = null;
+      
+        const { apiBaseUrl, trpcBaseUrl, origin } = getApiBaseUrls();
+        const restCandidates = [
+            `${apiBaseUrl}/kyc/submit`,
+            `${origin}/kyc/submit`,
+        ];
+        const trpcCandidates = [
+            `${trpcBaseUrl}/auth.submitKYC`,
+        ];
 
-        try {
-            const restResponse = await api.post('/kyc/submit', payload);
-            const restSuccess = restResponse?.data?.success === true;
-            if (!restSuccess) {
-                restErrorDetails = { status: restResponse?.status, data: restResponse?.data };
+        const unique = (urls: string[]) => Array.from(new Set(urls));
+        const timeout = { timeout: 30000 };
+
+        let restSuccess = false;
+        for (const url of unique(restCandidates)) {
+            try {
+                const restResponse = await axios.post(url, payload, timeout);
+                restSuccess = restResponse?.data?.success === true;
+                if (restSuccess) {
+                    break;
+                }
+                console.error("REST KYC submit failed:", { url, status: restResponse?.status, data: restResponse?.data });
+            } catch (restError: any) {
+                console.error("REST KYC submit failed:", {
+                    url,
+                    status: restError?.response?.status,
+                    data: restError?.response?.data,
+                });
             }
-        } catch (restError: any) {
-            restErrorDetails = {
-                status: restError?.response?.status,
-                data: restError?.response?.data,
-            };
         }
 
-        if (restErrorDetails) {
-            console.error("REST KYC submit failed:", restErrorDetails);
-            // ✅ tRPC expects raw JSON input (not wrapped in { json: ... }) for non-batch calls
-            const trpcResponse = await api.post('/trpc/auth.submitKYC', payload);
-            const trpcSuccess =
-                trpcResponse?.data?.result?.data?.success === true ||
-                trpcResponse?.data?.success === true;
+        if (!restSuccess) {
+            let trpcSuccess = false;
+            for (const url of unique(trpcCandidates)) {
+                try {
+                    const trpcResponse = await axios.post(url, payload, timeout);
+                    trpcSuccess =
+                        trpcResponse?.data?.result?.data?.success === true ||
+                        trpcResponse?.data?.success === true;
+                    if (trpcSuccess) {
+                        break;
+                    }
+                    console.error("tRPC KYC submit failed:", { url, status: trpcResponse?.status, data: trpcResponse?.data });
+                } catch (trpcError: any) {
+                    console.error("tRPC KYC submit failed:", {
+                        url,
+                        status: trpcError?.response?.status,
+                        data: trpcError?.response?.data,
+                    });
+                }
+            }
             if (!trpcSuccess) {
                 throw new Error("tRPC KYC submit failed");
             }
@@ -117,7 +147,7 @@ export default function RegisterScreen({ onBack, onFinish }: RegisterProps) {
         setStep('selfie');
     }
   };
-
+  
   // --- ACTIONS ---
   const handleStepBack = () => {
     if (step === 'front') onBack();
