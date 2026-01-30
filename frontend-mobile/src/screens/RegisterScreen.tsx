@@ -80,18 +80,23 @@ export default function RegisterScreen({ onBack, onFinish }: RegisterProps) {
         backImage: "base64",
         selfieImage: "base64",
       };
+       let restErrorDetails: { status?: number; data?: unknown } | null = null;
 
         try {
             const restResponse = await api.post('/kyc/submit', payload);
             const restSuccess = restResponse?.data?.success === true;
             if (!restSuccess) {
-                throw new Error("REST KYC submit failed");
+                restErrorDetails = { status: restResponse?.status, data: restResponse?.data };
             }
         } catch (restError: any) {
-            const status = restError?.response?.status;
-            if (status !== 404) {
-                throw restError;
-            }
+            restErrorDetails = {
+                status: restError?.response?.status,
+                data: restError?.response?.data,
+            };
+        }
+
+        if (restErrorDetails) {
+            console.error("REST KYC submit failed:", restErrorDetails);
             // ✅ tRPC expects raw JSON input (not wrapped in { json: ... }) for non-batch calls
             const trpcResponse = await api.post('/trpc/auth.submitKYC', payload);
             const trpcSuccess =

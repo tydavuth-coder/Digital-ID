@@ -35,6 +35,7 @@ export const api = axios.create({
   baseURL: buildApiBaseUrl(),
   timeout: 30000,
 });
+
 api.interceptors.request.use(async (config) => {
   const accessToken = await SecureStore.getItemAsync("accessToken");
   if (accessToken) {
