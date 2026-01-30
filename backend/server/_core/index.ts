@@ -6,6 +6,7 @@ import { createExpressMiddleware } from "@trpc/server/adapters/express";
 import { registerOAuthRoutes } from "./oauth";
 import { registerFirebaseAuthRoutes } from "./firebaseAuth";
 import { registerAuditExportRoutes } from "./auditExport";
+import { registerKycRoutes } from "./kyc";
 import { appRouter } from "../routers";
 import { createContext } from "./context";
 import { serveStatic, setupVite } from "./vite";
@@ -42,9 +43,17 @@ async function startServer() {
   // Firebase Email/Password auth session
   registerFirebaseAuthRoutes(app);
   registerAuditExportRoutes(app);
+  registerKycRoutes(app);
   // tRPC API
   app.use(
     "/api/trpc",
+    createExpressMiddleware({
+      router: appRouter,
+      createContext,
+    })
+  );
+    app.use(
+    "/trpc",
     createExpressMiddleware({
       router: appRouter,
       createContext,

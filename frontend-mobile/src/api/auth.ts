@@ -1,6 +1,6 @@
 import * as SecureStore from "expo-secure-store";
 import axios from "axios";
-import { api } from "./client";
+import { api, buildApiBaseUrl } from "./client";
 
 export type AuthUser = {
   id: string;
@@ -45,7 +45,7 @@ export async function refreshSession(): Promise<boolean> {
   if (!refreshToken) return false;
 
   // use plain axios to avoid interceptor recursion
-  const baseURL = process.env.EXPO_PUBLIC_API_BASE_URL || "https://id.efimef.org/api";
+  const baseURL = buildApiBaseUrl();
   const res = await axios.post(`${baseURL}/auth/refresh`, { refreshToken }, { timeout: 15000 });
 
   const { accessToken, refreshToken: newRefresh } = res.data ?? {};

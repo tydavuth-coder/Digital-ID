@@ -1,4 +1,4 @@
-import { eq, desc, and, sql, count, or } from "drizzle-orm";
+import { eq, desc, and, sql, count, or, isNull } from "drizzle-orm";
 import { drizzle } from "drizzle-orm/mysql2";
 import { 
   InsertUser, users, 
@@ -162,7 +162,10 @@ export async function deleteUser(id: number) {
 export async function createKycDocument(doc: InsertKycDocument) {
   const db = await getDb();
   if (!db) return null;
-  const result = await db.insert(kycDocuments).values(doc);
+  const result = await db.insert(kycDocuments).values({
+    verificationStatus: "pending",
+    ...doc,
+  });
   return result;
 }
 
@@ -185,7 +188,7 @@ export async function getPendingKycDocuments() {
     })
     .from(kycDocuments)
     .leftJoin(users, eq(kycDocuments.userId, users.id))
-    .where(eq(kycDocuments.verificationStatus, "pending"))
+    .where(or(eq(kycDocuments.verificationStatus, "pending"), isNull(kycDocuments.verificationStatus)))
     .orderBy(desc(kycDocuments.createdAt));
   
   return result;
@@ -540,4 +543,5 @@ export async function createActiveSession(data: {
   });
   
   return result;
+
 }

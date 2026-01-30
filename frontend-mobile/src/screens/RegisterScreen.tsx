@@ -66,24 +66,41 @@ export default function RegisterScreen({ onBack, onFinish }: RegisterProps) {
     return () => clearTimeout(timer);
   }, [step]);
 
-  // --- API CALL ---
   const uploadDataToBackend = async () => {
     try {
-        console.log("📤 Sending data to Backend...");
-        
-        const payload = {
-            nameEn: "New User",
-            nameKh: "អ្នកប្រើប្រាស់ថ្មី",
-            idNumber: Math.floor(100000000 + Math.random() * 900000000).toString(),
-            gender: "male",
-            address: "Phnom Penh",
-            frontImage: "base64",
-            backImage: "base64",
-            selfieImage: "base64"
-        };
+      console.log("📤 Sending data to Backend...");
 
-        // ✅ URL: auth.submitKYC (Make sure backend is restarted!)
-        await api.post('/trpc/auth.submitKYC', { json: payload });
+      const payload = {
+        nameEn: "New User",
+        nameKh: "អ្នកប្រើប្រាស់ថ្មី",
+        idNumber: Math.floor(100000000 + Math.random() * 900000000).toString(),
+        gender: "male",
+        address: "Phnom Penh",
+        frontImage: "base64",
+        backImage: "base64",
+        selfieImage: "base64",
+      };
+
+        try {
+            const restResponse = await api.post('/kyc/submit', payload);
+            const restSuccess = restResponse?.data?.success === true;
+            if (!restSuccess) {
+                throw new Error("REST KYC submit failed");
+            }
+        } catch (restError: any) {
+            const status = restError?.response?.status;
+            if (status !== 404) {
+                throw restError;
+            }
+            // ✅ tRPC expects raw JSON input (not wrapped in { json: ... }) for non-batch calls
+            const trpcResponse = await api.post('/trpc/auth.submitKYC', payload);
+            const trpcSuccess =
+                trpcResponse?.data?.result?.data?.success === true ||
+                trpcResponse?.data?.success === true;
+            if (!trpcSuccess) {
+                throw new Error("tRPC KYC submit failed");
+            }
+        }
 
         setTimeout(() => {
             setExtractedData(MOCK_DATA_FROM_BACKEND);
@@ -91,9 +108,8 @@ export default function RegisterScreen({ onBack, onFinish }: RegisterProps) {
         }, 1500);
     } catch (error) {
         console.error("Upload Error:", error);
-        // Fallback
-        setExtractedData(MOCK_DATA_FROM_BACKEND);
-        setStep('pin_setup');
+        Alert.alert("Upload Failed", "Unable to submit your registration. Please try again.");
+        setStep('selfie');
     }
   };
 
@@ -454,4 +470,5 @@ const styles = StyleSheet.create({
   infoTextId: { fontWeight: 'bold', color: '#0F172A', marginTop: 10, fontSize: 16 },
   homeBtn: { marginTop: 50, backgroundColor: '#2563EB', paddingVertical: 15, paddingHorizontal: 40, borderRadius: 30, elevation: 5 },
   homeBtnText: { color: 'white', fontWeight: 'bold', fontSize: 16 }
+
 });

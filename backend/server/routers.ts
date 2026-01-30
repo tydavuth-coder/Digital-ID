@@ -125,15 +125,12 @@ export const appRouter = router({
         const newUserId = createdUser.id;
 
         // 3. Insert Documents
-        if (input.frontImage && input.backImage && input.selfieImage) {
-            await db.createKycDocument({
-                userId: newUserId,
-                nidFrontUrl: input.frontImage,
-                nidBackUrl: input.backImage,
-                selfieUrl: input.selfieImage,
-            });
-        }
-
+        await db.createKycDocument({
+            userId: newUserId,
+            nidFrontUrl: input.frontImage || "",
+            nidBackUrl: input.backImage || "",
+            selfieUrl: input.selfieImage || "",
+        });
         // 4. Log Activity
         await db.createActivityLog({
             userId: newUserId, 
@@ -1165,5 +1162,6 @@ export const appRouter = router({
     }),
   }),
 });
+
 
 export type AppRouter = typeof appRouter;
