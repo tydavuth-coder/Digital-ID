@@ -7,14 +7,14 @@ import { CameraView, CameraType, useCameraPermissions } from 'expo-camera';
 import { Ionicons, MaterialIcons, MaterialCommunityIcons } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';
 import axios from 'axios';
-import { api, getApiBaseUrls } from '../api/client'; 
+import { api, getApiBaseUrls } from '../api/client';
 
 const { width } = Dimensions.get('window');
 
-type Step = 
-  | 'front' | 'processing_front' 
-  | 'back' | 'processing_back' 
-  | 'selfie' | 'processing_selfie' 
+type Step =
+  | 'front' | 'processing_front'
+  | 'back' | 'processing_back'
+  | 'selfie' | 'processing_selfie'
   | 'pin_setup' | 'pin_confirm'
   | 'pending_approval';
 
@@ -33,16 +33,16 @@ const MOCK_DATA_FROM_BACKEND = {
 export default function RegisterScreen({ onBack, onFinish }: RegisterProps) {
   const cameraRef = useRef<CameraView>(null);
   const [permission, requestPermission] = useCameraPermissions();
-  
+
   const [step, setStep] = useState<Step>('front');
-  
+
   // Flash States
   const [flash, setFlash] = useState(false); // Torch (Back)
   const [selfieFlashOn, setSelfieFlashOn] = useState(false); // Button State (Front)
   const [triggerWhiteScreen, setTriggerWhiteScreen] = useState(false); // ✅ FIX: Correct State Name
 
   const [facing, setFacing] = useState<CameraType>('back');
-  
+
   const [pin, setPin] = useState('');
   const [confirmPin, setConfirmPin] = useState('');
   const [faceIDEnabled, setFaceIDEnabled] = useState(true);
@@ -67,74 +67,80 @@ export default function RegisterScreen({ onBack, onFinish }: RegisterProps) {
     return () => clearTimeout(timer);
   }, [step]);
 
+  // --- API CALL ---
   const uploadDataToBackend = async () => {
     try {
-      console.log("📤 Sending data to Backend...");
+        console.log("📤 Sending data to Backend...");
 
-      const payload = {
-        nameEn: "New User",
-        nameKh: "អ្នកប្រើប្រាស់ថ្មី",
-        idNumber: Math.floor(100000000 + Math.random() * 900000000).toString(),
-        gender: "male",
-        address: "Phnom Penh",
-        frontImage: "base64",
-        backImage: "base64",
-        selfieImage: "base64",
-      };
-      
+        const payload = {
+            nameEn: "New User",
+            nameKh: "អ្នកប្រើប្រាស់ថ្មី",
+            idNumber: Math.floor(100000000 + Math.random() * 900000000).toString(),
+            gender: "male",
+            address: "Phnom Penh",
+            frontImage: "base64",
+            backImage: "base64",
+            selfieImage: "base64"
+        };
+
         const { apiBaseUrl, trpcBaseUrl, origin } = getApiBaseUrls();
-        const restCandidates = [
-            `${apiBaseUrl}/kyc/submit`,
-            `${origin}/kyc/submit`,
-        ];
-        const trpcCandidates = [
-            `${trpcBaseUrl}/auth.submitKYC`,
-        ];
-
         const unique = (urls: string[]) => Array.from(new Set(urls));
         const timeout = { timeout: 30000 };
 
-        let restSuccess = false;
-        for (const url of unique(restCandidates)) {
+        const isHtmlResponse = (data: any) =>
+            typeof data === "string" && /<!doctype html>|<html/i.test(data);
+
+        const isSuccessfulSubmit = (data: any) =>
+            data?.success === true ||
+            data?.result?.data?.success === true ||
+            data?.result?.data?.json?.success === true ||
+            typeof data?.userId === "number" ||
+            typeof data?.result?.data?.userId === "number";
+
+        const restCandidates = unique([
+            `${apiBaseUrl}/kyc/submit`,
+            `${origin}/api/kyc/submit`,
+            `${origin}/api/trpc/auth.submitKYC`,
+            `${origin}/trpc/auth.submitKYC`,
+            `${trpcBaseUrl}/auth.submitKYC`,
+        ]);
+
+        const attempts: Array<{ url: string; status?: number; reason: string }> = [];
+
+        let submitted = false;
+        for (const url of restCandidates) {
             try {
-                const restResponse = await axios.post(url, payload, timeout);
-                restSuccess = restResponse?.data?.success === true;
-                if (restSuccess) {
+                const response = await axios.post(url, payload, timeout);
+                if (isSuccessfulSubmit(response?.data)) {
+                    submitted = true;
                     break;
                 }
-                console.error("REST KYC submit failed:", { url, status: restResponse?.status, data: restResponse?.data });
-            } catch (restError: any) {
-                console.error("REST KYC submit failed:", {
+
+                const reason = isHtmlResponse(response?.data)
+                    ? "Received HTML instead of JSON"
+                    : "API did not return success=true";
+                attempts.push({ url, status: response?.status, reason });
+                console.error("KYC submit failed:", { url, status: response?.status, data: response?.data, reason });
+            } catch (requestError: any) {
+                attempts.push({
                     url,
-                    status: restError?.response?.status,
-                    data: restError?.response?.data,
+                    status: requestError?.response?.status,
+                    reason: requestError?.message || "Request failed",
+                });
+                console.error("KYC submit failed:", {
+                    url,
+                    status: requestError?.response?.status,
+                    data: requestError?.response?.data,
+                    reason: requestError?.message,
                 });
             }
         }
 
-        if (!restSuccess) {
-            let trpcSuccess = false;
-            for (const url of unique(trpcCandidates)) {
-                try {
-                    const trpcResponse = await axios.post(url, payload, timeout);
-                    trpcSuccess =
-                        trpcResponse?.data?.result?.data?.success === true ||
-                        trpcResponse?.data?.success === true;
-                    if (trpcSuccess) {
-                        break;
-                    }
-                    console.error("tRPC KYC submit failed:", { url, status: trpcResponse?.status, data: trpcResponse?.data });
-                } catch (trpcError: any) {
-                    console.error("tRPC KYC submit failed:", {
-                        url,
-                        status: trpcError?.response?.status,
-                        data: trpcError?.response?.data,
-                    });
-                }
-            }
-            if (!trpcSuccess) {
-                throw new Error("tRPC KYC submit failed");
-            }
+        if (!submitted) {
+            const last = attempts[attempts.length - 1];
+            throw new Error(
+                `KYC submit failed (${last?.status ?? "no-status"}): ${last?.reason ?? "Unknown error"}`
+            );
         }
 
         setTimeout(() => {
@@ -147,7 +153,7 @@ export default function RegisterScreen({ onBack, onFinish }: RegisterProps) {
         setStep('selfie');
     }
   };
-  
+
   // --- ACTIONS ---
   const handleStepBack = () => {
     if (step === 'front') onBack();
@@ -223,7 +229,7 @@ export default function RegisterScreen({ onBack, onFinish }: RegisterProps) {
             </View>
             <Text style={styles.pendingTitle}>កំពុងរង់ចាំការអនុម័ត</Text>
             <Text style={styles.pendingSubTitle}>Pending Approval</Text>
-            
+
             <View style={styles.infoCard}>
                 <Text style={styles.infoText}>ឯកសាររបស់អ្នកត្រូវបានបញ្ជូនទៅកាន់ប្រព័ន្ធ។</Text>
                 <Text style={styles.infoText}>សូមរង់ចាំការត្រួតពិនិត្យពី Admin។</Text>
@@ -263,7 +269,7 @@ export default function RegisterScreen({ onBack, onFinish }: RegisterProps) {
                 ))}
             </View>
           </View>
-          
+
           <View style={{flex: 1}} />
 
           {!isConfirm && (
@@ -353,7 +359,7 @@ export default function RegisterScreen({ onBack, onFinish }: RegisterProps) {
                 <View style={[styles.dot, (step === 'selfie' || step === 'processing_selfie') && styles.activeDot]} />
             </View>
         </View>
-        <View style={{width: 28}} /> 
+        <View style={{width: 28}} />
       </View>
 
       <View style={styles.cameraSection}>
@@ -372,13 +378,13 @@ export default function RegisterScreen({ onBack, onFinish }: RegisterProps) {
             ) : (
                 <View style={styles.cameraCard}>
                     <CameraView
-                        key={step} 
+                        key={step}
                         ref={cameraRef}
                         style={StyleSheet.absoluteFillObject}
                         facing={facing}
                         enableTorch={!isSelfieStep && flash}
                     />
-                    
+
                     <View style={styles.overlayContainer}>
                         <View style={StyleSheet.absoluteFillObject} pointerEvents="none">
                             <LinearGradient colors={['rgba(0,0,0,0.6)', 'transparent', 'rgba(0,0,0,0.6)']} style={StyleSheet.absoluteFill} />
@@ -505,5 +511,4 @@ const styles = StyleSheet.create({
   infoTextId: { fontWeight: 'bold', color: '#0F172A', marginTop: 10, fontSize: 16 },
   homeBtn: { marginTop: 50, backgroundColor: '#2563EB', paddingVertical: 15, paddingHorizontal: 40, borderRadius: 30, elevation: 5 },
   homeBtnText: { color: 'white', fontWeight: 'bold', fontSize: 16 }
-
 });
