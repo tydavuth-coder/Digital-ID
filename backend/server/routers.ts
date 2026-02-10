@@ -101,13 +101,9 @@ export const appRouter = router({
       selfieImage: z.string().optional(),
     })).mutation(async ({ input }) => {
       try {
-        console.log("[tRPC KYC] Received submission request");
-        console.log("[tRPC KYC] Input keys:", Object.keys(input));
-        
         const openId = `user_${nanoid(10)}`;
         
         // 1. Create User (Pending)
-        console.log("[tRPC KYC] Creating new user...");
         await db.upsertUser({
             openId: openId,
             name: input.nameEn,
@@ -115,14 +111,8 @@ export const appRouter = router({
         });
         const createdUser = await db.getUserByOpenId(openId);
         if (!createdUser) {
-            console.error("[tRPC KYC] Failed to retrieve created user");
-            throw new TRPCError({ 
-              code: "INTERNAL_SERVER_ERROR", 
-              message: "Failed to create user. Database connection may not be available." 
-            });
+            throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "Failed to create user" });
         }
-        
-        console.log(`[tRPC KYC] User created with ID: ${createdUser.id}`);
         
         // 2. Update Details
         await db.updateUser(createdUser.id, {
@@ -166,15 +156,13 @@ export const appRouter = router({
             console.log("WebSocket notification warning:", e);
         }
         
-        console.log(`[tRPC KYC] Successfully processed KYC submission for user ${newUserId}`);
         return { success: true, userId: newUserId };
 
       } catch (error) {
-        console.error("[tRPC KYC] Submit Error:", error);
-        const errorMessage = error instanceof Error ? error.message : "Unknown error";
+        console.error("KYC Submit Error:", error);
         throw new TRPCError({
             code: 'INTERNAL_SERVER_ERROR',
-            message: `Failed to submit KYC application: ${errorMessage}. Check if DATABASE_URL is configured.`
+            message: 'Failed to submit KYC application'
         });
       }
     }),

@@ -1,3 +1,4 @@
+//import { eq, desc, and, sql, count, or, isNull } from "drizzle-orm";
 import { eq, desc, and, sql, count, or, isNull } from "drizzle-orm";
 import { drizzle } from "drizzle-orm/mysql2";
 import { 
@@ -6,16 +7,47 @@ import {
   services, InsertService,
   userServices, InsertUserService,
   activityLogs, InsertActivityLog,
-  systemSettings, InsertSystemSettings,
+  systemSettings, InsertSystemSettings, SystemSettings,
   activeSessions, InsertActiveSession,
   notifications, InsertNotification,
   qrAuthTokens, InsertQrAuthToken,
-  reportSchedules, InsertReportSchedule
+  reportSchedules, InsertReportSchedule, ReportSchedule
 } from "../drizzle/schema";
 import { ENV } from './_core/env';
 
 let _db: ReturnType<typeof drizzle> | null = null;
+let fallbackSystemSettings: SystemSettings | null = null;
+let fallbackReportSchedules: ReportSchedule[] = [];
+let fallbackReportScheduleId = 1;
 
+function getFallbackSystemSettings(): SystemSettings {
+  if (!fallbackSystemSettings) {
+    const now = new Date();
+    fallbackSystemSettings = {
+      id: 1,
+      maintenanceMode: false,
+      allowKycUserCreation: true,
+      telegramBotToken: null,
+      telegramBotId: null,
+      smsProvider: null,
+      smsApiKey: null,
+      smsApiSecret: null,
+      smsSenderId: null,
+      smtpHost: null,
+      smtpPort: 587,
+      smtpSecure: false,
+      smtpUsername: null,
+      smtpPassword: null,
+      smtpFromEmail: null,
+      smtpFromName: null,
+      smtpEnabled: false,
+      updatedAt: now,
+      updatedBy: null,
+    };
+  }
+
+  return fallbackSystemSettings;
+}
 export async function getDb() {
   if (!_db && process.env.DATABASE_URL) {
     try {
@@ -338,7 +370,7 @@ export async function clearActivityLogs() {
 
 export async function getSystemSettings() {
   const db = await getDb();
-  if (!db) return null;
+  if (!db) return getFallbackSystemSettings();
   const result = await db.select().from(systemSettings).limit(1);
   
   // If no settings exist, create default settings
@@ -356,7 +388,16 @@ export async function getSystemSettings() {
 
 export async function updateSystemSettings(data: Partial<InsertSystemSettings>, updatedBy: number) {
   const db = await getDb();
-  if (!db) return null;
+  if (!db) {
+    const next = {
+      ...getFallbackSystemSettings(),
+      ...data,
+      updatedBy,
+      updatedAt: new Date(),
+    };
+    fallbackSystemSettings = next;
+    return next;
+  }
   
   const settings = await getSystemSettings();
   if (!settings) return null;
@@ -461,7 +502,14 @@ export async function markQrTokenAsUsed(tokenValue: string) {
 
 export async function getDashboardStats() {
   const db = await getDb();
-  if (!db) return null;
+  if (!db) {
+    return {
+      totalUsers: 0,
+      pendingKyc: 0,
+      activeUsers: 0,
+      activeSessions: 0,
+    };
+  }
   
   const [totalUsersResult] = await db.select({ count: count() }).from(users);
   const [pendingKycResult] = await db.select({ count: count() }).from(users).where(eq(users.kycStatus, "pending"));
@@ -481,20 +529,42 @@ export async function getDashboardStats() {
 
 export async function getAllReportSchedules() {
   const db = await getDb();
-  if (!db) return [];
+  if (!db) return [...fallbackReportSchedules].sort((a, b) => b.createdAt.getTime() - a.createdAt.getTime());
   return await db.select().from(reportSchedules).orderBy(desc(reportSchedules.createdAt));
 }
 
 export async function getReportScheduleById(id: number) {
   const db = await getDb();
-  if (!db) return null;
+  if (!db) return fallbackReportSchedules.find((schedule) => schedule.id === id) || null;
   const [schedule] = await db.select().from(reportSchedules).where(eq(reportSchedules.id, id)).limit(1);
   return schedule || null;
 }
 
 export async function createReportSchedule(data: InsertReportSchedule) {
   const db = await getDb();
-  if (!db) return null;
+  if (!db) {
+    const now = new Date();
+    const schedule: ReportSchedule = {
+      id: fallbackReportScheduleId++,
+      name: data.name,
+      reportType: data.reportType,
+      frequency: data.frequency,
+      dayOfWeek: data.dayOfWeek ?? null,
+      dayOfMonth: data.dayOfMonth ?? null,
+      timeOfDay: data.timeOfDay ?? "09:00",
+      recipientEmails: data.recipientEmails,
+      isEnabled: data.isEnabled ?? true,
+      lastRunAt: data.lastRunAt ?? null,
+      nextRunAt: data.nextRunAt ?? null,
+      lastStatus: data.lastStatus ?? "pending",
+      lastError: data.lastError ?? null,
+      createdBy: data.createdBy,
+      createdAt: now,
+      updatedAt: now,
+    };
+    fallbackReportSchedules.push(schedule);
+    return schedule;
+  }
   const result = await db.insert(reportSchedules).values(data);
   const insertId = result[0].insertId;
   return await getReportScheduleById(insertId);
@@ -502,22 +572,48 @@ export async function createReportSchedule(data: InsertReportSchedule) {
 
 export async function updateReportSchedule(id: number, data: Partial<InsertReportSchedule>) {
   const db = await getDb();
-  if (!db) return null;
+  if (!db) {
+    const idx = fallbackReportSchedules.findIndex((schedule) => schedule.id === id);
+    if (idx === -1) return null;
+
+    const current = fallbackReportSchedules[idx];
+    const updated: ReportSchedule = {
+      ...current,
+      ...data,
+      dayOfWeek: data.dayOfWeek === undefined ? current.dayOfWeek : data.dayOfWeek,
+      dayOfMonth: data.dayOfMonth === undefined ? current.dayOfMonth : data.dayOfMonth,
+      lastRunAt: data.lastRunAt === undefined ? current.lastRunAt : data.lastRunAt,
+      nextRunAt: data.nextRunAt === undefined ? current.nextRunAt : data.nextRunAt,
+      lastError: data.lastError === undefined ? current.lastError : data.lastError,
+      updatedAt: new Date(),
+    };
+
+    fallbackReportSchedules[idx] = updated;
+    return updated;
+  }
   await db.update(reportSchedules).set(data).where(eq(reportSchedules.id, id));
   return await getReportScheduleById(id);
 }
 
 export async function deleteReportSchedule(id: number) {
   const db = await getDb();
-  if (!db) return false;
+  if (!db) {
+    const before = fallbackReportSchedules.length;
+    fallbackReportSchedules = fallbackReportSchedules.filter((schedule) => schedule.id !== id);
+    return fallbackReportSchedules.length < before;
+  }
   await db.delete(reportSchedules).where(eq(reportSchedules.id, id));
   return true;
 }
 
 export async function getDueReportSchedules() {
   const db = await getDb();
-  if (!db) return [];
   const now = new Date();
+  if (!db) {
+    return fallbackReportSchedules.filter((schedule) =>
+      schedule.isEnabled && !!schedule.nextRunAt && schedule.nextRunAt <= now
+    );
+  }  
   return await db.select().from(reportSchedules)
     .where(
       and(
@@ -534,6 +630,8 @@ export async function createActiveSession(data: {
   ipAddress?: string;
   expiresAt: Date;
 }) {
+  const db = await getDb();
+  if (!db) return null;
   const [result] = await db.insert(activeSessions).values({
     userId: data.userId,
     sessionToken: data.sessionToken,

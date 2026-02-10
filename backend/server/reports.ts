@@ -112,12 +112,12 @@ export async function generatePDFReport(data: ReportData): Promise<Buffer> {
           .stroke("#9ca3af");
 
         // Find max value for scaling
-        const maxValue = Math.max(...data.userGrowthData.map((d) => d.count));
+        const maxValue = Math.max(1, ...data.userGrowthData.map((d) => d.count));
         const barWidth = chartWidth / data.userGrowthData.length - 10;
 
         // Draw bars
         data.userGrowthData.forEach((item, index) => {
-          const barHeight = (item.count / maxValue) * chartHeight;
+          const barHeight = maxValue > 0 ? (item.count / maxValue) * chartHeight : 0;
           const x = chartX + index * (barWidth + 10) + 5;
           const y = chartY + chartHeight - barHeight;
 
