@@ -19,6 +19,9 @@ import { generatePDFReport, type ReportData } from "./reports";
 // ✅ IMPORT WEBSOCKET FUNCTIONS
 import { emitDashboardLoginSuccess, getIO } from "./websocket";
 
+// ✅ IMPORT OCR FUNCTION (ប្រាកដថាអ្នកមាន file _core/ocr.ts ត្រឹមត្រូវ)
+import { extractDataFromID } from "./_core/ocr";
+
 // Helper function to calculate next run time for scheduled reports
 function calculateNextRunTime(
   frequency: string,
@@ -86,7 +89,7 @@ export const appRouter = router({
       return { success: true } as const;
     }),
 
-    // ✅ PUBLIC KYC SUBMISSION (Accessible without login)
+    // ✅ PUBLIC KYC SUBMISSION WITH OCR INTEGRATION & DOB FIX
     submitKYC: publicProcedure.input(z.object({
       nameKh: z.string().optional(),
       nameEn: z.string().optional(),
@@ -103,22 +106,43 @@ export const appRouter = router({
       try {
         const openId = `user_${nanoid(10)}`;
         
-        // 1. Create User (Pending)
+        // --- STEP 1: OCR PROCESSING ---
+        let ocrData: any = {};
+        if (input.frontImage) {
+            console.log("Processing OCR for National ID...");
+            // ហៅទៅ Google Cloud Vision ដើម្បីអានទិន្នន័យ
+            ocrData = await extractDataFromID(input.frontImage);
+            console.log("OCR Result:", ocrData);
+        }
+
+        // --- STEP 2: MERGE DATA (Input vs OCR) ---
+        // ប្រើទិន្នន័យពី User បើមាន, បើគ្មានប្រើពី OCR, បើគ្មានទៀតដាក់ Unknown
+        const finalNameEn = input.nameEn || ocrData.nameEn || "Unknown";
+        const finalNameKh = input.nameKh || ocrData.nameKh;
+        const finalNationalId = input.idNumber || ocrData.nationalId;
+        const finalDob = input.dob || ocrData.dob; // ✅ យកថ្ងៃកំណើតពី OCR
+        const finalExpiry = input.expiryDate || ocrData.expiryDate; // ✅ យកថ្ងៃអស់សុពលភាព
+        // ------------------------------
+
+        // 3. Create User (Pending State)
         await db.upsertUser({
             openId: openId,
-            name: input.nameEn,
+            name: finalNameEn,
             email: `temp_${nanoid(5)}@digitalid.local` 
         });
+
         const createdUser = await db.getUserByOpenId(openId);
         if (!createdUser) {
             throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "Failed to create user" });
         }
         
-        // 2. Update Details
+        // 4. Update Details (Save everything to DB)
         await db.updateUser(createdUser.id, {
-            nameKhmer: input.nameKh,
-            nameEnglish: input.nameEn,
-            nationalId: input.idNumber,
+            nameKhmer: finalNameKh,
+            nameEnglish: finalNameEn,
+            nationalId: finalNationalId,
+            dob: finalDob,             // ✅ Save ថ្ងៃកំណើត (សំខាន់កុំឱ្យគាំង)
+            idExpiryDate: finalExpiry, // ✅ Save ថ្ងៃអស់សុពលភាព
             gender: input.gender as any,
             address: input.address,
             status: "pending",
@@ -128,35 +152,41 @@ export const appRouter = router({
 
         const newUserId = createdUser.id;
 
-        // 3. Insert Documents
+        // 5. Insert Documents Images
         await db.createKycDocument({
             userId: newUserId,
             nidFrontUrl: input.frontImage || "",
             nidBackUrl: input.backImage || "",
             selfieUrl: input.selfieImage || "",
         });
-        // 4. Log Activity
+        
+        // 6. Log Activity
         await db.createActivityLog({
             userId: newUserId, 
-            username: input.nameEn || "New Applicant",
+            username: finalNameEn,
             action: "Submitted KYC Registration",
             actionType: "kyc_submit",
-            description: `New user application via Mobile App.`,
+            // Log នេះនឹងបង្ហាញក្នុង Dashboard ថា OCR ដំណើរការឬអត់
+            description: `New user application via Mobile App. OCR detected ID: ${finalNationalId || "N/A"}`,
         });
 
-        // 5. Notify Admins (WebSocket)
+        // 7. Notify Admins (WebSocket)
         try {
             const io = getIO();
             io.to("admins").emit("kyc-submission", {
                 userId: newUserId,
-                userName: input.nameEn,
+                userName: finalNameEn,
                 timestamp: new Date()
             });
         } catch (e) {
             console.log("WebSocket notification warning:", e);
         }
         
-        return { success: true, userId: newUserId };
+        return { 
+          success: true, 
+          userId: newUserId,
+          extractedData: ocrData // ត្រឡប់ទិន្នន័យទៅ Frontend វិញ
+        };
 
       } catch (error) {
         console.error("KYC Submit Error:", error);
@@ -255,6 +285,8 @@ export const appRouter = router({
         status: z.enum(["active", "pending", "blocked"]).optional(),
         photoUrl: z.string().optional(),
         role: z.enum(["user", "admin", "kyc_reviewer", "system_admin", "super_admin"]).optional(),
+        dob: z.string().optional(), // ✅ Allow updating DOB
+        idExpiryDate: z.string().optional(), // ✅ Allow updating Expiry
       }),
     })).mutation(async ({ input, ctx }) => {
       const updated = await db.updateUser(input.id, input.data);
