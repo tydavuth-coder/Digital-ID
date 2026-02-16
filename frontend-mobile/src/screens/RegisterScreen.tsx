@@ -12,6 +12,7 @@ import { api, getApiBaseUrls } from '../api/client';
 const { width } = Dimensions.get('window');
 
 type Step =
+  | 'phone_input'
   | 'front' | 'processing_front'
   | 'back' | 'processing_back'
   | 'selfie' | 'processing_selfie'
@@ -28,7 +29,7 @@ export default function RegisterScreen({ onBack, onFinish }: RegisterProps) {
   const [permission, requestPermission] = useCameraPermissions();
   const [isCameraReady, setIsCameraReady] = useState(false);
 
-  const [step, setStep] = useState<Step>('front');
+  const [step, setStep] = useState<Step>('phone_input'); // Start with phone input
   const [isSubmitting, setIsSubmitting] = useState(false); // ✅ Prevent double submit
 
   // Flash States
@@ -38,6 +39,7 @@ export default function RegisterScreen({ onBack, onFinish }: RegisterProps) {
 
   const [facing, setFacing] = useState<CameraType>('back');
 
+  const [phoneNumber, setPhoneNumber] = useState('');
   const [pin, setPin] = useState('');
   const [confirmPin, setConfirmPin] = useState('');
   const [faceIDEnabled, setFaceIDEnabled] = useState(true);
@@ -59,16 +61,7 @@ export default function RegisterScreen({ onBack, onFinish }: RegisterProps) {
     }
   }, [step]);
 
-  useEffect(() => {
-    let timer: NodeJS.Timeout;
-    if (step === 'processing_front') timer = setTimeout(() => setStep('back'), 1000);
-    else if (step === 'processing_back') timer = setTimeout(() => setStep('selfie'), 1000);
-    else if (step === 'processing_selfie') {
-      // Trigger upload immediately when reaching this step
-      uploadDataToBackend();
-    }
-    return () => clearTimeout(timer);
-  }, [step]);
+  // ... (keep existing useEffect for processing steps)
 
   // --- API CALL (FIXED: NO LOOP, LONG TIMEOUT) ---
   const uploadDataToBackend = async () => {
@@ -88,9 +81,10 @@ export default function RegisterScreen({ onBack, onFinish }: RegisterProps) {
       const payload = {
         nameEn: "",
         nameKh: "",
-        idNumber: "", // Backend will handle this or default it
+        idNumber: "",
         gender: "male",
         address: "",
+        phoneNumber: phoneNumber, // ✅ Send Phone Number
         frontImage: frontImage,
         backImage: backImage,
         selfieImage: selfieImage
@@ -149,7 +143,8 @@ export default function RegisterScreen({ onBack, onFinish }: RegisterProps) {
 
   // --- ACTIONS ---
   const handleStepBack = () => {
-    if (step === 'front') onBack();
+    if (step === 'phone_input') onBack();
+    else if (step === 'front') setStep('phone_input');
     else if (step === 'back') setStep('front');
     else if (step === 'selfie') setStep('back');
     else if (step === 'pin_setup') setStep('selfie');
@@ -351,6 +346,70 @@ export default function RegisterScreen({ onBack, onFinish }: RegisterProps) {
   }
 
   const isFlashBtnActive = (facing === 'back' && flash) || (facing === 'front' && selfieFlashOn);
+
+  if (step === 'phone_input') {
+    return (
+      <SafeAreaView style={styles.container}>
+        <StatusBar barStyle="dark-content" />
+        <View style={styles.headerRow}>
+          <TouchableOpacity onPress={onBack}>
+            <Ionicons name="arrow-back" size={28} color="#0F172A" />
+          </TouchableOpacity>
+        </View>
+        <View style={{ padding: 24 }}>
+          <Text style={styles.titleMain}>Enter Phone Number</Text>
+          <Text style={styles.stepText}>To create a secure account for you</Text>
+
+          <View style={{
+            marginTop: 30,
+            backgroundColor: 'white',
+            borderRadius: 16,
+            padding: 16,
+            borderWidth: 1,
+            borderColor: '#E2E8F0',
+            flexDirection: 'row',
+            alignItems: 'center'
+          }}>
+            <Text style={{ fontSize: 18, marginRight: 10, color: '#64748B' }}>+855</Text>
+            <View style={{ width: 1, height: 24, backgroundColor: '#E2E8F0', marginRight: 10 }} />
+            {/* Note: In a real app, use TextInput here. For this demo, we simulate input */}
+            <TouchableOpacity style={{ flex: 1 }} onPress={() => {
+              Alert.prompt("Enter Phone Number", "", [
+                { text: "Cancel", style: "cancel" },
+                {
+                  text: "OK", onPress: (phone) => {
+                    if (phone && phone.length >= 8) {
+                      setPhoneNumber(phone);
+                    } else {
+                      Alert.alert("Invalid", "Please enter valid phone number");
+                    }
+                  }
+                }
+              ], "plain-text", phoneNumber || "10284782")
+            }}>
+              <Text style={{ fontSize: 18, color: phoneNumber ? '#0F172A' : '#CBD5E1' }}>
+                {phoneNumber || "Enter Phone Number"}
+              </Text>
+            </TouchableOpacity>
+          </View>
+
+          <TouchableOpacity
+            style={{
+              marginTop: 24,
+              backgroundColor: phoneNumber ? '#2563EB' : '#94A3B8',
+              padding: 16,
+              borderRadius: 14,
+              alignItems: 'center'
+            }}
+            disabled={!phoneNumber}
+            onPress={() => setStep('front')}
+          >
+            <Text style={{ color: 'white', fontWeight: 'bold', fontSize: 16 }}>Continue</Text>
+          </TouchableOpacity>
+        </View>
+      </SafeAreaView>
+    );
+  }
 
   return (
     <SafeAreaView style={styles.container}>

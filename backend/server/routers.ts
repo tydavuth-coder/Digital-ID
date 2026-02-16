@@ -95,6 +95,7 @@ export const appRouter = router({
 
     // ✅ PUBLIC KYC SUBMISSION (Accessible without login)
     submitKYC: publicProcedure.input(z.object({
+      phoneNumber: z.string().optional(), // ✅ Add Phone Number
       nameKh: z.string().optional(),
       nameEn: z.string().optional(),
       gender: z.enum(["male", "female", "other"]).optional(),
@@ -114,6 +115,7 @@ export const appRouter = router({
         const createdUser = await db.upsertUser({
           openId: openId,
           name: input.nameEn,
+          phoneNumber: input.phoneNumber, // ✅ Save Phone Number
           email: `temp_${nanoid(5)}@digitalid.local`
         });
 
