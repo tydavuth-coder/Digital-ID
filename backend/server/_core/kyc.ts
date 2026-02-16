@@ -66,6 +66,21 @@ function extractDataFromText(text: string) {
 }
 
 export function registerKycRoutes(app: Express) {
+  const kycSchema = z.object({
+    phoneNumber: z.string().optional(), // ✅ Add Phone Number
+    nameKh: z.string().optional(),
+    nameEn: z.string().optional(),
+    gender: z.enum(["male", "female", "other"]).optional(),
+    idNumber: z.string().optional(),
+    dob: z.string().optional(),
+    pob: z.string().optional(),
+    address: z.string().optional(),
+    expiryDate: z.string().optional(),
+    frontImage: z.string().optional(),
+    backImage: z.string().optional(),
+    selfieImage: z.string().optional(),
+  });
+
   const handler = async (req: Request, res: Response) => {
     // Increase timeout for OCR
     req.socket.setTimeout(120000);
@@ -112,6 +127,7 @@ export function registerKycRoutes(app: Express) {
         openId: openId,
         name: finalNameEn || "New User",
         email: `temp_${nanoid(5)}@digitalid.local`,
+        phoneNumber: input.phoneNumber, // ✅ Save Phone Number
       });
       const createdUser = await db.getUserByOpenId(openId);
       if (!createdUser) {
