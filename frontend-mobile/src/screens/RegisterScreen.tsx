@@ -1,7 +1,7 @@
 import React, { useState, useRef, useEffect } from 'react';
 import {
   StyleSheet, Text, View, TouchableOpacity, SafeAreaView,
-  StatusBar, Dimensions, Platform, ActivityIndicator, Switch, Alert
+  StatusBar, Dimensions, Platform, ActivityIndicator, Switch, Alert, TextInput
 } from 'react-native';
 import { CameraView, CameraType, useCameraPermissions } from 'expo-camera';
 import { Ionicons, MaterialIcons, MaterialCommunityIcons } from '@expo/vector-icons';
@@ -250,35 +250,31 @@ export default function RegisterScreen({ onBack, onFinish }: RegisterProps) {
           }}>
             <Text style={{ fontSize: 18, marginRight: 10, color: '#64748B' }}>+855</Text>
             <View style={{ width: 1, height: 24, backgroundColor: '#E2E8F0', marginRight: 10 }} />
-            <TouchableOpacity style={{ flex: 1 }} onPress={() => {
-              Alert.prompt("Telegram Phone Number", "", [
-                { text: "Cancel", style: "cancel" },
-                {
-                  text: "OK", onPress: (phone) => {
-                    if (phone && phone.length >= 8) {
-                      setPhoneNumber(phone);
-                    } else {
-                      Alert.alert("Invalid", "Please enter valid phone number");
-                    }
-                  }
-                }
-              ], "plain-text", phoneNumber || "")
-            }}>
-              <Text style={{ fontSize: 18, color: phoneNumber ? '#0F172A' : '#CBD5E1' }}>
-                {phoneNumber || "Enter Number"}
-              </Text>
-            </TouchableOpacity>
+            <TextInput
+              style={{ flex: 1, fontSize: 18, color: '#0F172A' }}
+              placeholder="Enter Number"
+              placeholderTextColor="#CBD5E1"
+              keyboardType="phone-pad"
+              value={phoneNumber}
+              onChangeText={setPhoneNumber}
+              autoFocus={true}
+            />
           </View>
 
           <TouchableOpacity
             style={{
               marginTop: 24,
-              backgroundColor: phoneNumber ? '#2563EB' : '#94A3B8',
+              backgroundColor: phoneNumber.length >= 8 ? '#2563EB' : '#94A3B8',
               padding: 16,
               borderRadius: 14,
-              alignItems: 'center'
+              alignItems: 'center',
+              shadowColor: "#000",
+              shadowOffset: { width: 0, height: 2 },
+              shadowOpacity: 0.1,
+              shadowRadius: 4,
+              elevation: 2
             }}
-            disabled={!phoneNumber}
+            disabled={phoneNumber.length < 8}
             onPress={() => setStep('front')}
           >
             <Text style={{ color: 'white', fontWeight: 'bold', fontSize: 16 }}>Continue</Text>
