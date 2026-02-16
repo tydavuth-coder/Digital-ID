@@ -18,6 +18,10 @@ import {
 import { generatePDFReport, type ReportData } from "./reports";
 // ✅ IMPORT WEBSOCKET FUNCTIONS
 import { emitDashboardLoginSuccess, getIO } from "./websocket";
+import { sendTelegramMessage } from "./_core/telegram";
+
+// Simple In-Memory OTP Store
+const otpStore = new Map<string, { code: string, expires: number }>();
 
 // Helper function to calculate next run time for scheduled reports
 function calculateNextRunTime(
@@ -219,28 +223,61 @@ export const appRouter = router({
       })).mutation(async ({ input }) => {
         const user = await db.getUserByPhone(input.phone);
         if (!user) {
-          // Don't reveal user existence
-          return { success: true, message: "OTP sent (mock)" };
+          // Don't reveal user existence, but for now we just return success
+          return { success: true, message: "OTP sent" };
         }
 
-        // MOCK OTP: In reality, send to Telegram/SMS
-        const otp = "123456";
+        if (!user.telegramChatId) {
+          console.log(`[Recovery] User ${input.phone} has no linked Telegram Chat ID.`);
+          // In production, we might fall back to SMS or return an error if SMS is not configured.
+          // For now, fail silently or with a specific message not revealed to client strictly? 
+          // Let's Log it.
+          return { success: false, message: "No linked Telegram account found." };
+        }
 
-        // Store OTP in DB (We need a place for this, or just use a fixed one for dev)
-        // For now, let's assume 123456 is always valid for dev purposes
-        console.log(`[Recovery] OTP for ${input.phone}: ${otp}`);
+        // Generate 6-digit OTP
+        const otp = Math.floor(100000 + Math.random() * 900000).toString();
+        // DEV DEBUG: Log OTP to console for testing
+        console.log(`[Recovery] Generated OTP for ${input.phone}: ${otp}`);
 
-        return { success: true, message: "OTP sent" };
+        // Store in Memory (Expires in 5 minutes)
+        otpStore.set(input.phone, {
+          code: otp,
+          expires: Date.now() + 5 * 60 * 1000
+        });
+
+        // Send via Telegram
+        const sent = await sendTelegramMessage(user.telegramChatId, `🔐 Your Recovery OTP is: *${otp}*\n\nValid for 5 minutes.`);
+
+        if (sent) {
+          console.log(`[Recovery] OTP sent to ${user.telegramChatId} for ${input.phone}`);
+          return { success: true, message: "OTP sent" };
+        } else {
+          return { success: false, message: "Failed to send OTP via Telegram" };
+        }
       }),
 
       "verify-otp": publicProcedure.input(z.object({
         phone: z.string(),
         otp: z.string(),
       })).mutation(async ({ input }) => {
-        // Mock Verification
-        if (input.otp !== "123456") {
+        const stored = otpStore.get(input.phone);
+
+        if (!stored) {
+          throw new TRPCError({ code: 'BAD_REQUEST', message: 'OTP expired or not found' });
+        }
+
+        if (Date.now() > stored.expires) {
+          otpStore.delete(input.phone);
+          throw new TRPCError({ code: 'BAD_REQUEST', message: 'OTP expired' });
+        }
+
+        if (stored.code !== input.otp) {
           throw new TRPCError({ code: 'BAD_REQUEST', message: 'Invalid OTP' });
         }
+
+        // Consume OTP
+        otpStore.delete(input.phone);
 
         const user = await db.getUserByPhone(input.phone);
         if (!user) {

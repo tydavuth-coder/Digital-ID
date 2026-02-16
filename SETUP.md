@@ -40,6 +40,9 @@ OWNER_OPEN_ID=your-admin-open-id
 # Server Configuration
 PORT=3000
 NODE_ENV=development
+
+# OAuth Configuration
+OAUTH_SERVER_URL=https://api.manus.co
 ```
 
 **Important:** Make sure to replace the database credentials with your actual MySQL connection details.

@@ -36,5 +36,11 @@ frontend-mobile/ios/xcuserdata/
 
 # --- aaPanel Specific ---
 aa_import_*.log
-.well-known/backend/service-account.json
-backend/service-account.json
+.well-known/
+
+# --- Archives ---
+*.zip
+*.tar
+*.gz
+*.rar
+backend.zip

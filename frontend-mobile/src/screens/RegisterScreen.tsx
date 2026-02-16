@@ -1,7 +1,7 @@
 import React, { useState, useRef, useEffect } from 'react';
-import { 
-  StyleSheet, Text, View, TouchableOpacity, SafeAreaView, 
-  StatusBar, Dimensions, Platform, ActivityIndicator, Switch, Alert 
+import {
+  StyleSheet, Text, View, TouchableOpacity, SafeAreaView,
+  StatusBar, Dimensions, Platform, ActivityIndicator, Switch, Alert
 } from 'react-native';
 import { CameraView, CameraType, useCameraPermissions } from 'expo-camera';
 import { Ionicons, MaterialIcons, MaterialCommunityIcons } from '@expo/vector-icons';
@@ -23,23 +23,18 @@ interface RegisterProps {
   onFinish: (data: any) => void;
 }
 
-const MOCK_DATA_FROM_BACKEND = {
-  nameEn: "SOKHA DARA",
-  id: "123-999-888",
-  validUntil: "Dec 2030",
-  avatar: "https://i.pravatar.cc/150?img=12"
-};
-
 export default function RegisterScreen({ onBack, onFinish }: RegisterProps) {
   const cameraRef = useRef<CameraView>(null);
   const [permission, requestPermission] = useCameraPermissions();
+  const [isCameraReady, setIsCameraReady] = useState(false);
 
   const [step, setStep] = useState<Step>('front');
+  const [isSubmitting, setIsSubmitting] = useState(false); // ✅ Prevent double submit
 
   // Flash States
   const [flash, setFlash] = useState(false); // Torch (Back)
   const [selfieFlashOn, setSelfieFlashOn] = useState(false); // Button State (Front)
-  const [triggerWhiteScreen, setTriggerWhiteScreen] = useState(false); // ✅ FIX: Correct State Name
+  const [triggerWhiteScreen, setTriggerWhiteScreen] = useState(false);
 
   const [facing, setFacing] = useState<CameraType>('back');
 
@@ -47,6 +42,11 @@ export default function RegisterScreen({ onBack, onFinish }: RegisterProps) {
   const [confirmPin, setConfirmPin] = useState('');
   const [faceIDEnabled, setFaceIDEnabled] = useState(true);
   const [extractedData, setExtractedData] = useState<any>(null);
+
+  // ✅ State សម្រាប់រូបភាព
+  const [frontImage, setFrontImage] = useState<string | null>(null);
+  const [backImage, setBackImage] = useState<string | null>(null);
+  const [selfieImage, setSelfieImage] = useState<string | null>(null);
 
   // --- AUTOMATION ---
   useEffect(() => {
@@ -61,96 +61,89 @@ export default function RegisterScreen({ onBack, onFinish }: RegisterProps) {
 
   useEffect(() => {
     let timer: NodeJS.Timeout;
-    if (step === 'processing_front') timer = setTimeout(() => setStep('back'), 1500);
-    else if (step === 'processing_back') timer = setTimeout(() => setStep('selfie'), 1500);
-    else if (step === 'processing_selfie') uploadDataToBackend();
+    if (step === 'processing_front') timer = setTimeout(() => setStep('back'), 1000);
+    else if (step === 'processing_back') timer = setTimeout(() => setStep('selfie'), 1000);
+    else if (step === 'processing_selfie') {
+      // Trigger upload immediately when reaching this step
+      uploadDataToBackend();
+    }
     return () => clearTimeout(timer);
   }, [step]);
 
-  // --- API CALL ---
+  // --- API CALL (FIXED: NO LOOP, LONG TIMEOUT) ---
   const uploadDataToBackend = async () => {
-    try {
-        console.log("📤 Sending data to Backend...");
+    if (isSubmitting) return; // ✅ Prevent double execution
+    setIsSubmitting(true);
 
-        const payload = {
-            nameEn: "New User",
-            nameKh: "អ្នកប្រើប្រាស់ថ្មី",
-            idNumber: Math.floor(100000000 + Math.random() * 900000000).toString(),
-            gender: "male",
-            address: "Phnom Penh",
-            frontImage: "base64",
-            backImage: "base64",
-            selfieImage: "base64"
+    try {
+      console.log("📤 Sending data to Backend (Single Attempt)...");
+
+      if (!frontImage || !backImage || !selfieImage) {
+        Alert.alert("Error", "Missing photos. Please try again.");
+        setStep('front');
+        setIsSubmitting(false);
+        return;
+      }
+
+      const payload = {
+        nameEn: "",
+        nameKh: "",
+        idNumber: "", // Backend will handle this or default it
+        gender: "male",
+        address: "",
+        frontImage: frontImage,
+        backImage: backImage,
+        selfieImage: selfieImage
+      };
+
+      // ✅ Get Base URL
+      const { apiBaseUrl } = getApiBaseUrls();
+      const url = `${apiBaseUrl}/kyc/submit`;
+
+      console.log(`Target URL: ${url}`);
+
+      // ✅ Send Request with 120s Timeout
+      const response = await axios.post(url, payload, { timeout: 120000 });
+
+      console.log("Response Status:", response.status);
+
+      const isSuccessful =
+        response?.data?.success === true ||
+        response?.data?.result?.data?.json?.success === true ||
+        typeof response?.data?.userId === "number" ||
+        typeof response?.data?.result?.data?.userId === "number";
+
+      if (isSuccessful) {
+        console.log("✅ Upload Successful!");
+
+        const backendResult = response.data.result?.data?.json || response.data;
+        const ocrData = backendResult.extractedData || {};
+
+        const finalData = {
+          nameEn: ocrData.nameEn || "New User",
+          id: ocrData.nationalId || `ID_${Date.now()}`, // Fallback if OCR fails
+          validUntil: ocrData.expiryDate || "Unknown Date",
+          avatar: selfieImage
         };
 
-        const { apiBaseUrl, trpcBaseUrl, origin } = getApiBaseUrls();
-        const unique = (urls: string[]) => Array.from(new Set(urls));
-        const timeout = { timeout: 30000 };
+        setExtractedData(finalData);
 
-        const isHtmlResponse = (data: any) =>
-            typeof data === "string" && /<!doctype html>|<html/i.test(data);
+        // Move to next step
+        setStep('pin_setup');
+      } else {
+        throw new Error("API returned success=false");
+      }
 
-        const isSuccessfulSubmit = (data: any) =>
-            data?.success === true ||
-            data?.result?.data?.success === true ||
-            data?.result?.data?.json?.success === true ||
-            typeof data?.userId === "number" ||
-            typeof data?.result?.data?.userId === "number";
+    } catch (error: any) {
+      console.error("Upload Error:", error);
 
-        const restCandidates = unique([
-            `${apiBaseUrl}/kyc/submit`,
-            `${origin}/api/kyc/submit`,
-            `${origin}/api/trpc/auth.submitKYC`,
-            `${origin}/trpc/auth.submitKYC`,
-            `${trpcBaseUrl}/auth.submitKYC`,
-        ]);
-
-        const attempts: Array<{ url: string; status?: number; reason: string }> = [];
-
-        let submitted = false;
-        for (const url of restCandidates) {
-            try {
-                const response = await axios.post(url, payload, timeout);
-                if (isSuccessfulSubmit(response?.data)) {
-                    submitted = true;
-                    break;
-                }
-
-                const reason = isHtmlResponse(response?.data)
-                    ? "Received HTML instead of JSON"
-                    : "API did not return success=true";
-                attempts.push({ url, status: response?.status, reason });
-                console.error("KYC submit failed:", { url, status: response?.status, data: response?.data, reason });
-            } catch (requestError: any) {
-                attempts.push({
-                    url,
-                    status: requestError?.response?.status,
-                    reason: requestError?.message || "Request failed",
-                });
-                console.error("KYC submit failed:", {
-                    url,
-                    status: requestError?.response?.status,
-                    data: requestError?.response?.data,
-                    reason: requestError?.message,
-                });
-            }
-        }
-
-        if (!submitted) {
-            const last = attempts[attempts.length - 1];
-            throw new Error(
-                `KYC submit failed (${last?.status ?? "no-status"}): ${last?.reason ?? "Unknown error"}`
-            );
-        }
-
-        setTimeout(() => {
-            setExtractedData(MOCK_DATA_FROM_BACKEND);
-            setStep('pin_setup');
-        }, 1500);
-    } catch (error) {
-        console.error("Upload Error:", error);
-        Alert.alert("Upload Failed", "Unable to submit your registration. Please try again.");
-        setStep('selfie');
+      Alert.alert(
+        "Upload Failed",
+        "Connection timed out or failed. Please check your internet and try again."
+      );
+      setStep('selfie'); // Let user retry manually
+    } finally {
+      setIsSubmitting(false);
     }
   };
 
@@ -161,25 +154,43 @@ export default function RegisterScreen({ onBack, onFinish }: RegisterProps) {
     else if (step === 'selfie') setStep('back');
     else if (step === 'pin_setup') setStep('selfie');
     else if (step === 'pin_confirm') {
-        setStep('pin_setup');
-        setPin('');
+      setStep('pin_setup');
+      setPin('');
     }
   };
 
   const handleCapture = async () => {
-    if (step === 'selfie') {
-        if (selfieFlashOn) {
-            setTriggerWhiteScreen(true); // ✅ Use correct state
-            setTimeout(() => {
-                setTriggerWhiteScreen(false);
-                setStep('processing_selfie');
-            }, 300);
-        } else {
-            setStep('processing_selfie');
+    if (cameraRef.current) {
+      try {
+        console.log("📸 Attempting to take picture...");
+        const photo = await cameraRef.current.takePictureAsync({
+          base64: true,
+          quality: 0.5,
+          skipProcessing: true,
+          exif: false
+        });
+
+        console.log("✅ Picture taken:", photo.uri);
+        const base64Img = `data:image/jpeg;base64,${photo?.base64}`;
+
+        if (step === 'front') {
+          setFrontImage(base64Img);
+          setStep('processing_front');
+        } else if (step === 'back') {
+          setBackImage(base64Img);
+          setStep('processing_back');
+        } else if (step === 'selfie') {
+          // ... selfie logic ...
+          // Simplified for debugging safety, recursive logic was risky
+          setSelfieImage(base64Img);
+          setStep('processing_selfie');
         }
+      } catch (e: any) {
+        console.error("Failed to capture photo:", e);
+        Alert.alert("Camera Error", e.message || "Could not take photo.");
+      }
     } else {
-        if (step === 'front') setStep('processing_front');
-        else if (step === 'back') setStep('processing_back');
+      console.warn("Camera ref is null");
     }
   };
 
@@ -224,20 +235,20 @@ export default function RegisterScreen({ onBack, onFinish }: RegisterProps) {
       <View style={styles.pendingContainer}>
         <StatusBar barStyle="dark-content" />
         <View style={styles.pendingContent}>
-            <View style={styles.successIcon}>
-                <Ionicons name="time" size={60} color="#F59E0B" />
-            </View>
-            <Text style={styles.pendingTitle}>កំពុងរង់ចាំការអនុម័ត</Text>
-            <Text style={styles.pendingSubTitle}>Pending Approval</Text>
+          <View style={styles.successIcon}>
+            <Ionicons name="time" size={60} color="#F59E0B" />
+          </View>
+          <Text style={styles.pendingTitle}>កំពុងរង់ចាំការអនុម័ត</Text>
+          <Text style={styles.pendingSubTitle}>Pending Approval</Text>
 
-            <View style={styles.infoCard}>
-                <Text style={styles.infoText}>ឯកសាររបស់អ្នកត្រូវបានបញ្ជូនទៅកាន់ប្រព័ន្ធ។</Text>
-                <Text style={styles.infoText}>សូមរង់ចាំការត្រួតពិនិត្យពី Admin។</Text>
-            </View>
+          <View style={styles.infoCard}>
+            <Text style={styles.infoText}>ឯកសាររបស់អ្នកត្រូវបានបញ្ជូនទៅកាន់ប្រព័ន្ធ។</Text>
+            <Text style={styles.infoText}>សូមរង់ចាំការត្រួតពិនិត្យពី Admin។</Text>
+          </View>
 
-            <TouchableOpacity style={styles.homeBtn} onPress={() => onFinish(extractedData)}>
-                <Text style={styles.homeBtnText}>ត្រឡប់ទៅទំព័រដើម</Text>
-            </TouchableOpacity>
+          <TouchableOpacity style={styles.homeBtn} onPress={() => onFinish(extractedData)}>
+            <Text style={styles.homeBtnText}>ត្រឡប់ទៅទំព័រដើម</Text>
+          </TouchableOpacity>
         </View>
       </View>
     );
@@ -250,57 +261,57 @@ export default function RegisterScreen({ onBack, onFinish }: RegisterProps) {
     return (
       <SafeAreaView style={styles.container}>
         <View style={styles.headerRow}>
-            <TouchableOpacity onPress={handleStepBack}>
-                <Ionicons name="arrow-back" size={28} color="#0F172A" />
-            </TouchableOpacity>
-            <Text style={styles.headerTitleDark}>Security Setup</Text>
-            <View style={{width: 28}} />
+          <TouchableOpacity onPress={handleStepBack}>
+            <Ionicons name="arrow-back" size={28} color="#0F172A" />
+          </TouchableOpacity>
+          <Text style={styles.headerTitleDark}>Security Setup</Text>
+          <View style={{ width: 28 }} />
         </View>
         <View style={styles.pinContent}>
-          <View style={{alignItems: 'center', marginTop: 10}}>
+          <View style={{ alignItems: 'center', marginTop: 10 }}>
             <View style={styles.lockIconBg}>
-                <MaterialIcons name={isConfirm ? "lock" : "lock-outline"} size={36} color="#2563EB" />
+              <MaterialIcons name={isConfirm ? "lock" : "lock-outline"} size={36} color="#2563EB" />
             </View>
             <Text style={styles.pinTitleMain}>{isConfirm ? "Confirm New PIN" : "Set Your PIN Code"}</Text>
             <Text style={styles.pinSubtitle}>Create a 6-digit PIN to secure your digital identity.</Text>
             <View style={styles.pinDotsRow}>
-                {[1, 2, 3, 4, 5, 6].map((i) => (
+              {[1, 2, 3, 4, 5, 6].map((i) => (
                 <View key={i} style={[styles.pinDotCircle, currentPin.length >= i ? styles.pinDotFilled : null]} />
-                ))}
+              ))}
             </View>
           </View>
 
-          <View style={{flex: 1}} />
+          <View style={{ flex: 1 }} />
 
           {!isConfirm && (
             <View style={styles.biometricCard}>
-                <View style={{flexDirection: 'row', alignItems: 'center', gap: 12}}>
-                    <View style={styles.faceIdIcon}>
-                        <MaterialIcons name="face" size={22} color="#2563EB" />
-                    </View>
-                    <View>
-                        <Text style={styles.bioTitle}>Enable FaceID</Text>
-                        <Text style={styles.bioSub}>Use biometrics for faster login</Text>
-                    </View>
+              <View style={{ flexDirection: 'row', alignItems: 'center', gap: 12 }}>
+                <View style={styles.faceIdIcon}>
+                  <MaterialIcons name="face" size={22} color="#2563EB" />
                 </View>
-                <Switch value={faceIDEnabled} onValueChange={setFaceIDEnabled} trackColor={{ false: "#767577", true: "#2563EB" }} thumbColor={"#f4f3f4"} />
+                <View>
+                  <Text style={styles.bioTitle}>Enable FaceID</Text>
+                  <Text style={styles.bioSub}>Use biometrics for faster login</Text>
+                </View>
+              </View>
+              <Switch value={faceIDEnabled} onValueChange={setFaceIDEnabled} trackColor={{ false: "#767577", true: "#2563EB" }} thumbColor={"#f4f3f4"} />
             </View>
           )}
 
           <View style={styles.keypad}>
             {[
-                ['1', '2', '3'],
-                ['4', '5', '6'],
-                ['7', '8', '9'],
-                ['', '0', 'del']
+              ['1', '2', '3'],
+              ['4', '5', '6'],
+              ['7', '8', '9'],
+              ['', '0', 'del']
             ].map((row, rIdx) => (
-                <View key={rIdx} style={styles.keyRow}>
-                    {row.map((key, kIdx) => (
-                        <TouchableOpacity key={kIdx} style={styles.keyButton} onPress={() => handlePinInput(key)} disabled={key === ''}>
-                            {key === 'del' ? <Ionicons name="backspace-outline" size={28} color="#0F172A" /> : <Text style={styles.keyText}>{key}</Text>}
-                        </TouchableOpacity>
-                    ))}
-                </View>
+              <View key={rIdx} style={styles.keyRow}>
+                {row.map((key, kIdx) => (
+                  <TouchableOpacity key={kIdx} style={styles.keyButton} onPress={() => handlePinInput(key)} disabled={key === ''}>
+                    {key === 'del' ? <Ionicons name="backspace-outline" size={28} color="#0F172A" /> : <Text style={styles.keyText}>{key}</Text>}
+                  </TouchableOpacity>
+                ))}
+              </View>
             ))}
           </View>
         </View>
@@ -308,16 +319,16 @@ export default function RegisterScreen({ onBack, onFinish }: RegisterProps) {
     );
   }
 
-  // CAMERA & PROCESSING
+  // CAMERA UI
   if (!permission) return <View />;
   if (!permission.granted) {
     return (
-        <View style={[styles.container, {justifyContent: 'center', alignItems: 'center'}]}>
-            <Text>Camera permission needed.</Text>
-            <TouchableOpacity onPress={requestPermission} style={{marginTop: 20, padding: 10, backgroundColor: '#2563EB', borderRadius: 8}}>
-                <Text style={{color: 'white'}}>Allow Camera</Text>
-            </TouchableOpacity>
-        </View>
+      <View style={[styles.container, { justifyContent: 'center', alignItems: 'center' }]}>
+        <Text>Camera permission needed.</Text>
+        <TouchableOpacity onPress={requestPermission} style={{ marginTop: 20, padding: 10, backgroundColor: '#2563EB', borderRadius: 8 }}>
+          <Text style={{ color: 'white' }}>Allow Camera</Text>
+        </TouchableOpacity>
+      </View>
     );
   }
 
@@ -344,22 +355,21 @@ export default function RegisterScreen({ onBack, onFinish }: RegisterProps) {
   return (
     <SafeAreaView style={styles.container}>
       <StatusBar barStyle="dark-content" />
-      {/* ✅ WHITE OVERLAY for Selfie Flash */}
       {triggerWhiteScreen && <View style={styles.screenFlash} pointerEvents="none" />}
 
       <View style={styles.headerRow}>
         <TouchableOpacity onPress={handleStepBack}>
           <Ionicons name="arrow-back" size={28} color="#0F172A" />
         </TouchableOpacity>
-        <View style={{alignItems: 'center'}}>
-            <Text style={styles.headerTitleDark}>Identity Verification</Text>
-            <View style={styles.paginationContainer}>
-                <View style={[styles.dot, (step === 'front' || step === 'processing_front') && styles.activeDot]} />
-                <View style={[styles.dot, (step === 'back' || step === 'processing_back') && styles.activeDot]} />
-                <View style={[styles.dot, (step === 'selfie' || step === 'processing_selfie') && styles.activeDot]} />
-            </View>
+        <View style={{ alignItems: 'center' }}>
+          <Text style={styles.headerTitleDark}>Identity Verification</Text>
+          <View style={styles.paginationContainer}>
+            <View style={[styles.dot, (step === 'front' || step === 'processing_front') && styles.activeDot]} />
+            <View style={[styles.dot, (step === 'back' || step === 'processing_back') && styles.activeDot]} />
+            <View style={[styles.dot, (step === 'selfie' || step === 'processing_selfie') && styles.activeDot]} />
+          </View>
         </View>
-        <View style={{width: 28}} />
+        <View style={{ width: 28 }} />
       </View>
 
       <View style={styles.cameraSection}>
@@ -368,77 +378,81 @@ export default function RegisterScreen({ onBack, onFinish }: RegisterProps) {
         <Text style={styles.stepText}>{stepCount}</Text>
 
         <View style={styles.cameraContainer}>
-            {isProcessing ? (
-                <View style={styles.processingContainer}>
-                    <ActivityIndicator size="large" color="#2563EB" style={{transform: [{scale: 1.5}], marginBottom: 20}} />
-                    <Text style={styles.processingTitle}>Processing</Text>
-                    <Text style={styles.processingSub}>Verifying image quality...</Text>
-                    {isSelfieStep && <Text style={styles.processingKhmer}>Sending to Backend...</Text>}
+          {isProcessing ? (
+            <View style={styles.processingContainer}>
+              <ActivityIndicator size="large" color="#2563EB" style={{ transform: [{ scale: 1.5 }], marginBottom: 20 }} />
+              <Text style={styles.processingTitle}>Processing</Text>
+              <Text style={styles.processingSub}>Verifying image quality...</Text>
+              {isSelfieStep && <Text style={styles.processingKhmer}>Sending to Backend (This may take a minute)...</Text>}
+            </View>
+          ) : (
+            <View style={styles.cameraCard}>
+              <CameraView
+                key={step}
+                ref={cameraRef}
+                style={StyleSheet.absoluteFillObject}
+                facing={facing}
+                enableTorch={!isSelfieStep && flash}
+                onCameraReady={() => {
+                  console.log("Camera is ready!");
+                  setIsCameraReady(true);
+                }}
+              />
+
+              <View style={styles.overlayContainer}>
+                <View style={StyleSheet.absoluteFillObject} pointerEvents="none">
+                  <LinearGradient colors={['rgba(0,0,0,0.6)', 'transparent', 'rgba(0,0,0,0.6)']} style={StyleSheet.absoluteFill} />
                 </View>
-            ) : (
-                <View style={styles.cameraCard}>
-                    <CameraView
-                        key={step}
-                        ref={cameraRef}
-                        style={StyleSheet.absoluteFillObject}
-                        facing={facing}
-                        enableTorch={!isSelfieStep && flash}
-                    />
 
-                    <View style={styles.overlayContainer}>
-                        <View style={StyleSheet.absoluteFillObject} pointerEvents="none">
-                            <LinearGradient colors={['rgba(0,0,0,0.6)', 'transparent', 'rgba(0,0,0,0.6)']} style={StyleSheet.absoluteFill} />
-                        </View>
-
-                        <View style={[styles.frame, isSelfieStep ? styles.circleFrame : styles.rectFrame]}>
-                            {isSelfieStep && (
-                                <View style={styles.selfiePlaceholder}>
-                                    <Ionicons name="person" size={120} color="rgba(255,255,255,0.3)" />
-                                    <View style={styles.idCardHint}>
-                                        <MaterialCommunityIcons name="card-account-details-outline" size={50} color="rgba(255,255,255,0.5)" />
-                                    </View>
-                                </View>
-                            )}
-                            <View style={[styles.corner, styles.topLeft]} />
-                            <View style={[styles.corner, styles.topRight]} />
-                            <View style={[styles.corner, styles.bottomLeft]} />
-                            <View style={[styles.corner, styles.bottomRight]} />
-                            {!isSelfieStep && <View style={styles.guidePill}><Text style={styles.guidePillText}>{guideText}</Text></View>}
-                        </View>
+                <View style={[styles.frame, isSelfieStep ? styles.circleFrame : styles.rectFrame]}>
+                  {isSelfieStep && (
+                    <View style={styles.selfiePlaceholder}>
+                      <Ionicons name="person" size={120} color="rgba(255,255,255,0.3)" />
+                      <View style={styles.idCardHint}>
+                        <MaterialCommunityIcons name="card-account-details-outline" size={50} color="rgba(255,255,255,0.5)" />
+                      </View>
                     </View>
+                  )}
+                  <View style={[styles.corner, styles.topLeft]} />
+                  <View style={[styles.corner, styles.topRight]} />
+                  <View style={[styles.corner, styles.bottomLeft]} />
+                  <View style={[styles.corner, styles.bottomRight]} />
+                  {!isSelfieStep && <View style={styles.guidePill}><Text style={styles.guidePillText}>{guideText}</Text></View>}
                 </View>
-            )}
+              </View>
+            </View>
+          )}
         </View>
 
         {!isProcessing && (
-            <>
-                <View style={styles.hintContainer}>
-                    <MaterialIcons name="wb-sunny" size={20} color="#2563EB" />
-                    <Text style={styles.hintTitle}>Lighting Check</Text>
+          <>
+            <View style={styles.hintContainer}>
+              <MaterialIcons name="wb-sunny" size={20} color="#2563EB" />
+              <Text style={styles.hintTitle}>Lighting Check</Text>
+            </View>
+            <Text style={styles.hintText}>Make sure the lighting is good and letters are clear.</Text>
+            <Text style={styles.hintTextKhmer}>សូមប្រាកដថាពន្លឺគ្រប់គ្រាន់ និងអក្សរច្បាស់ល្អ</Text>
+
+            <View style={styles.bottomControls}>
+              <TouchableOpacity style={styles.controlItem} onPress={toggleCameraFacing}>
+                <View style={styles.circleBtnSmall}>
+                  <Ionicons name="camera-reverse-outline" size={24} color="#64748B" />
                 </View>
-                <Text style={styles.hintText}>Make sure the lighting is good and letters are clear.</Text>
-                <Text style={styles.hintTextKhmer}>សូមប្រាកដថាពន្លឺគ្រប់គ្រាន់ និងអក្សរច្បាស់ល្អ</Text>
+                <Text style={styles.controlLabel}>Flip</Text>
+              </TouchableOpacity>
 
-                <View style={styles.bottomControls}>
-                    <TouchableOpacity style={styles.controlItem} onPress={toggleCameraFacing}>
-                        <View style={styles.circleBtnSmall}>
-                            <Ionicons name="camera-reverse-outline" size={24} color="#64748B" />
-                        </View>
-                        <Text style={styles.controlLabel}>Flip</Text>
-                    </TouchableOpacity>
+              <TouchableOpacity style={styles.shutterOuter} onPress={handleCapture}>
+                <View style={styles.shutterInner} />
+              </TouchableOpacity>
 
-                    <TouchableOpacity style={styles.shutterOuter} onPress={handleCapture}>
-                        <View style={styles.shutterInner} />
-                    </TouchableOpacity>
-
-                    <TouchableOpacity style={styles.controlItem} onPress={toggleFlashButton}>
-                        <View style={[styles.circleBtnSmall, isFlashBtnActive && {backgroundColor: '#FEF3C7'}]}>
-                            <Ionicons name={isFlashBtnActive ? "flash" : "flash-off"} size={24} color={isFlashBtnActive ? "#F59E0B" : "#64748B"} />
-                        </View>
-                        <Text style={styles.controlLabel}>Flash</Text>
-                    </TouchableOpacity>
+              <TouchableOpacity style={styles.controlItem} onPress={toggleFlashButton}>
+                <View style={[styles.circleBtnSmall, isFlashBtnActive && { backgroundColor: '#FEF3C7' }]}>
+                  <Ionicons name={isFlashBtnActive ? "flash" : "flash-off"} size={24} color={isFlashBtnActive ? "#F59E0B" : "#64748B"} />
                 </View>
-            </>
+                <Text style={styles.controlLabel}>Flash</Text>
+              </TouchableOpacity>
+            </View>
+          </>
         )}
       </View>
     </SafeAreaView>
@@ -468,7 +482,7 @@ const styles = StyleSheet.create({
   rectFrame: { width: '85%', height: '70%', borderRadius: 12 },
   circleFrame: { width: 220, height: 220, borderRadius: 110, overflow: 'hidden', justifyContent: 'center', alignItems: 'center' },
   selfiePlaceholder: { justifyContent: 'center', alignItems: 'center', marginTop: 20 },
-  idCardHint: { position: 'absolute', bottom: -10, right: -10, transform: [{rotate: '-10deg'}] },
+  idCardHint: { position: 'absolute', bottom: -10, right: -10, transform: [{ rotate: '-10deg' }] },
   corner: { position: 'absolute', width: 25, height: 25, borderColor: '#2563EB', borderWidth: 4, borderRadius: 4 },
   topLeft: { top: -2, left: -2, borderRightWidth: 0, borderBottomWidth: 0 },
   topRight: { top: -2, right: -2, borderLeftWidth: 0, borderBottomWidth: 0 },

@@ -1,7 +1,7 @@
 import React, { useState, useRef, useEffect } from 'react';
-import { 
-  StyleSheet, Text, View, TouchableOpacity, SafeAreaView, 
-  TextInput, Dimensions, StatusBar, Alert, ActivityIndicator 
+import {
+  StyleSheet, Text, View, TouchableOpacity, SafeAreaView,
+  TextInput, Dimensions, StatusBar, Alert, ActivityIndicator
 } from 'react-native';
 import { Ionicons, MaterialIcons } from '@expo/vector-icons';
 import { api } from '../api/client'; // ត្រូវប្រាកដថាមាន api client
@@ -18,13 +18,14 @@ interface RecoveryScreenProps {
 export default function RecoveryScreen({ onBack, onFinish }: RecoveryScreenProps) {
   const [step, setStep] = useState<Step>('phone');
   const [loading, setLoading] = useState(false);
-  
+
   // Data
   const [phone, setPhone] = useState('');
   const [otp, setOtp] = useState(['', '', '', '', '', '']);
   const [pin, setPin] = useState('');
   const [confirmPin, setConfirmPin] = useState('');
-  
+  const [recoveryToken, setRecoveryToken] = useState('');
+
   // Focus Management
   const [activeOtpIndex, setActiveOtpIndex] = useState(0);
   const inputRefs = useRef<Array<TextInput | null>>([]);
@@ -63,23 +64,19 @@ export default function RecoveryScreen({ onBack, onFinish }: RecoveryScreenProps
     try {
       // ហៅទៅ Backend ដើម្បីផ្ញើ Telegram Msg
       // POST /api/auth/recovery/send-otp
-      /* 
-      await api.post('/auth/recovery/send-otp', { 
+
+      await api.post('/auth/recovery/send-otp', {
         phone: phone,
-        method: 'telegram' 
-      }); 
-      */
-      
-      // Simulation Success
-      setTimeout(() => {
-        setLoading(false);
-        setStep('otp');
-        setTimer(180); // Reset Timer
-      }, 1500);
+        method: 'telegram'
+      });
+
+      setLoading(false);
+      setStep('otp');
+      setTimer(180); // Reset Timer
 
     } catch (error) {
       setLoading(false);
-      Alert.alert("Failed", "មិនអាចផ្ញើលេខកូដបានទេ។ សូមព្យាយាមម្តងទៀត។");
+      Alert.alert("Failed", "មិនអាចផ្ញើលេខកូដបានទេ។ សូមព្យាយាមម្តងទៀត ឬពិនិត្យមើលថាតើអ្នកបានភ្ជាប់ Telegram ជាមួយគណនីរបស់អ្នកដែរឬទេ។");
     }
   };
 
@@ -95,18 +92,26 @@ export default function RecoveryScreen({ onBack, onFinish }: RecoveryScreenProps
     try {
       // ហៅទៅ Backend ដើម្បីផ្ទៀងផ្ទាត់
       // POST /api/auth/recovery/verify-otp
-      /*
-      await api.post('/auth/recovery/verify-otp', { 
-        phone: phone,
-        otp: otpCode 
-      });
-      */
 
-      // Simulation Success
-      setTimeout(() => {
-        setLoading(false);
-        setStep('pin_setup');
-      }, 1500);
+      const res = await api.post('/auth/recovery/verify-otp', {
+        phone: phone,
+        otp: otpCode
+      });
+
+      // Backend returns { success: true, recoveryToken: '...' }
+      // We might need to store recoveryToken if the next step (reset-pin) needs it.
+      // But looking at the component, the next step is just UI.
+      // Wait, reset-pin needs it!
+      // I should store `recoveryToken` in state.
+
+      // Let's check api result.
+      const data = res.data;
+      if (data.recoveryToken) {
+        setRecoveryToken(data.recoveryToken);
+      }
+
+      setLoading(false);
+      setStep('pin_setup');
 
     } catch (error) {
       setLoading(false);
@@ -136,7 +141,7 @@ export default function RecoveryScreen({ onBack, onFinish }: RecoveryScreenProps
     if (e.nativeEvent.key === 'Backspace' && index > 0 && otp[index] === '') {
       inputRefs.current[index - 1]?.focus();
       const newOtp = [...otp];
-      newOtp[index - 1] = ''; 
+      newOtp[index - 1] = '';
       setOtp(newOtp);
       setActiveOtpIndex(index - 1);
     }
@@ -158,17 +163,31 @@ export default function RecoveryScreen({ onBack, onFinish }: RecoveryScreenProps
         setConfirmPin(newConfirm);
         if (newConfirm.length === 6) {
           if (newConfirm === pin) {
-            setTimeout(() => {
-                Alert.alert("Success", "PIN ត្រូវបានផ្លាស់ប្តូរជោគជ័យ!", [
-                    { text: "OK", onPress: onFinish }
-                ]);
-            }, 300);
+            // Call API to Reset PIN
+            handleResetPin(newConfirm);
           } else {
             Alert.alert("Error", "លេខ PIN មិនដូចគ្នាទេ");
             setConfirmPin('');
           }
         }
       }
+    }
+  };
+
+  const handleResetPin = async (newPin: string) => {
+    setLoading(true);
+    try {
+      await api.post('/auth/recovery/reset-pin', {
+        recoveryToken: recoveryToken,
+        newPin: newPin
+      });
+      setLoading(false);
+      Alert.alert("Success", "PIN ត្រូវបានផ្លាស់ប្តូរជោគជ័យ!", [
+        { text: "OK", onPress: onFinish }
+      ]);
+    } catch (error) {
+      setLoading(false);
+      Alert.alert("Failed", "បរាជ័យក្នុងការផ្លាស់ប្តូរ PIN");
     }
   };
 
@@ -199,9 +218,9 @@ export default function RecoveryScreen({ onBack, onFinish }: RecoveryScreenProps
       ].map((row, rowIndex) => (
         <View key={rowIndex} style={styles.keypadRow}>
           {row.map((item, index) => (
-            <TouchableOpacity 
-              key={index} 
-              style={styles.keyButton} 
+            <TouchableOpacity
+              key={index}
+              style={styles.keyButton}
               onPress={() => item && handlePinInput(item)}
               disabled={!item}
             >
@@ -225,14 +244,14 @@ export default function RecoveryScreen({ onBack, onFinish }: RecoveryScreenProps
         <View style={styles.body}>
           <Text style={styles.stepTitle}>Step 1/2: Contact Information</Text>
           <Text style={styles.stepDesc}>Enter your registered phone number to recover your account.</Text>
-          
+
           <Text style={styles.label}>Phone Number</Text>
           <View style={styles.phoneInputContainer}>
             <Text style={styles.countryCode}>+855</Text>
             <View style={styles.verticalLine} />
-            <TextInput 
-              style={styles.phoneInput} 
-              placeholder="12 345 678" 
+            <TextInput
+              style={styles.phoneInput}
+              placeholder="12 345 678"
               keyboardType="number-pad"
               value={phone}
               onChangeText={setPhone}
@@ -240,8 +259,8 @@ export default function RecoveryScreen({ onBack, onFinish }: RecoveryScreenProps
             />
           </View>
 
-          <TouchableOpacity 
-            style={[styles.mainButton, loading && {opacity: 0.7}]} 
+          <TouchableOpacity
+            style={[styles.mainButton, loading && { opacity: 0.7 }]}
             onPress={handleSendOTP}
             disabled={loading}
           >
@@ -260,9 +279,9 @@ export default function RecoveryScreen({ onBack, onFinish }: RecoveryScreenProps
         <View style={styles.body}>
           <Text style={styles.stepTitle}>Step 2/2: Verify OTP</Text>
           <Text style={styles.stepDesc}>
-            Enter the 6-digit code sent to <Text style={{fontWeight:'bold'}}>+855 {phone}</Text> via Telegram.
+            Enter the 6-digit code sent to <Text style={{ fontWeight: 'bold' }}>+855 {phone}</Text> via Telegram.
           </Text>
-          
+
           {/* OTP INPUTS */}
           <View style={styles.otpContainer}>
             {otp.map((digit, index) => (
@@ -270,8 +289,8 @@ export default function RecoveryScreen({ onBack, onFinish }: RecoveryScreenProps
                 key={index}
                 ref={(ref) => (inputRefs.current[index] = ref)}
                 style={[
-                    styles.otpBox, 
-                    (activeOtpIndex === index || digit) ? styles.otpBoxActive : null
+                  styles.otpBox,
+                  (activeOtpIndex === index || digit) ? styles.otpBoxActive : null
                 ]}
                 maxLength={1}
                 keyboardType="number-pad"
@@ -285,20 +304,20 @@ export default function RecoveryScreen({ onBack, onFinish }: RecoveryScreenProps
           </View>
 
           {/* TIMER / RESEND */}
-          <View style={{alignItems: 'center', marginBottom: 30}}>
+          <View style={{ alignItems: 'center', marginBottom: 30 }}>
             {timer > 0 ? (
-                <Text style={styles.timerText}>
-                    Resend code in <Text style={{fontWeight: 'bold'}}>{formatTime(timer)}</Text>
-                </Text>
+              <Text style={styles.timerText}>
+                Resend code in <Text style={{ fontWeight: 'bold' }}>{formatTime(timer)}</Text>
+              </Text>
             ) : (
-                <TouchableOpacity onPress={handleResend}>
-                    <Text style={styles.resendText}>Resend Code</Text>
-                </TouchableOpacity>
+              <TouchableOpacity onPress={handleResend}>
+                <Text style={styles.resendText}>Resend Code</Text>
+              </TouchableOpacity>
             )}
           </View>
 
-          <TouchableOpacity 
-            style={[styles.mainButton, loading && {opacity: 0.7}]} 
+          <TouchableOpacity
+            style={[styles.mainButton, loading && { opacity: 0.7 }]}
             onPress={handleVerifyOTP}
             disabled={loading}
           >
@@ -314,7 +333,7 @@ export default function RecoveryScreen({ onBack, onFinish }: RecoveryScreenProps
     const currentPin = step === 'pin_setup' ? pin : confirmPin;
     const title = 'Reset PIN';
     const subTitle = step === 'pin_setup' ? 'Setup New PIN' : 'Confirm New PIN';
-    
+
     return (
       <View style={styles.container}>
         {renderHeader(title, 'lock-clock', subTitle)}
@@ -325,7 +344,7 @@ export default function RecoveryScreen({ onBack, onFinish }: RecoveryScreenProps
               <View key={i} style={[styles.pinDot, currentPin.length >= i ? styles.pinDotActive : null]} />
             ))}
           </View>
-          <View style={{flex: 1}} />
+          <View style={{ flex: 1 }} />
           {renderKeypad()}
         </View>
       </View>
@@ -337,7 +356,7 @@ export default function RecoveryScreen({ onBack, onFinish }: RecoveryScreenProps
 
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: '#F8FAFC' },
-  
+
   // Header
   headerContainer: {
     backgroundColor: '#2563EB',
@@ -377,7 +396,7 @@ const styles = StyleSheet.create({
   mainButton: {
     backgroundColor: '#818CF8', height: 55, borderRadius: 30,
     justifyContent: 'center', alignItems: 'center', shadowColor: '#818CF8',
-    shadowOffset: {width: 0, height: 4}, shadowOpacity: 0.3, shadowRadius: 5, elevation: 3,
+    shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.3, shadowRadius: 5, elevation: 3,
   },
   mainBtnText: { color: 'white', fontWeight: 'bold', fontSize: 16 },
 
@@ -396,7 +415,7 @@ const styles = StyleSheet.create({
   dotContainer: { flexDirection: 'row', gap: 15, marginBottom: 30 },
   pinDot: { width: 16, height: 16, borderRadius: 8, backgroundColor: '#cbd5e1' },
   pinDotActive: { backgroundColor: '#2563EB' },
-  
+
   // Keypad
   keypadContainer: { width: '100%', paddingHorizontal: 40, paddingBottom: 20 },
   keypadRow: { flexDirection: 'row', justifyContent: 'space-between', marginBottom: 20 },
