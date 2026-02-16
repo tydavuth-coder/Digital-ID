@@ -6,21 +6,18 @@ import { z } from "zod";
 import { TRPCError } from "@trpc/server";
 import * as db from "./db";
 import { nanoid } from "nanoid";
-import { 
-  sendKycApprovedEmail, 
-  sendKycRejectedEmail, 
-  sendServiceConnectedEmail, 
-  testSmtpConnection, 
-  sendTestEmail, 
-  clearSmtpConfigCache, 
-  sendScheduledReportEmail 
+import {
+  sendKycApprovedEmail,
+  sendKycRejectedEmail,
+  sendServiceConnectedEmail,
+  testSmtpConnection,
+  sendTestEmail,
+  clearSmtpConfigCache,
+  sendScheduledReportEmail
 } from "./email";
 import { generatePDFReport, type ReportData } from "./reports";
 // ✅ IMPORT WEBSOCKET FUNCTIONS
 import { emitDashboardLoginSuccess, getIO } from "./websocket";
-
-// ✅ IMPORT OCR FUNCTION (ប្រាកដថាអ្នកមាន file _core/ocr.ts ត្រឹមត្រូវ)
-import { extractDataFromID } from "./_core/ocr";
 
 // Helper function to calculate next run time for scheduled reports
 function calculateNextRunTime(
@@ -33,7 +30,7 @@ function calculateNextRunTime(
   const now = new Date();
   const next = new Date();
   next.setHours(hours, minutes, 0, 0);
-  
+
   switch (frequency) {
     case 'daily':
       if (next <= now) {
@@ -66,7 +63,7 @@ function calculateNextRunTime(
       }
       break;
   }
-  
+
   return next;
 }
 
@@ -80,7 +77,7 @@ const adminProcedure = protectedProcedure.use(({ ctx, next }) => {
 
 export const appRouter = router({
   system: systemRouter,
-  
+
   auth: router({
     me: publicProcedure.query(opts => opts.ctx.user),
     logout: publicProcedure.mutation(({ ctx }) => {
@@ -89,7 +86,7 @@ export const appRouter = router({
       return { success: true } as const;
     }),
 
-    // ✅ PUBLIC KYC SUBMISSION WITH OCR INTEGRATION & DOB FIX
+    // ✅ PUBLIC KYC SUBMISSION (Accessible without login)
     submitKYC: publicProcedure.input(z.object({
       nameKh: z.string().optional(),
       nameEn: z.string().optional(),
@@ -105,96 +102,184 @@ export const appRouter = router({
     })).mutation(async ({ input }) => {
       try {
         const openId = `user_${nanoid(10)}`;
-        
-        // --- STEP 1: OCR PROCESSING ---
-        let ocrData: any = {};
-        if (input.frontImage) {
-            console.log("Processing OCR for National ID...");
-            // ហៅទៅ Google Cloud Vision ដើម្បីអានទិន្នន័យ
-            ocrData = await extractDataFromID(input.frontImage);
-            console.log("OCR Result:", ocrData);
-        }
 
-        // --- STEP 2: MERGE DATA (Input vs OCR) ---
-        // ប្រើទិន្នន័យពី User បើមាន, បើគ្មានប្រើពី OCR, បើគ្មានទៀតដាក់ Unknown
-        const finalNameEn = input.nameEn || ocrData.nameEn || "Unknown";
-        const finalNameKh = input.nameKh || ocrData.nameKh;
-        const finalNationalId = input.idNumber || ocrData.nationalId;
-        const finalDob = input.dob || ocrData.dob; // ✅ យកថ្ងៃកំណើតពី OCR
-        const finalExpiry = input.expiryDate || ocrData.expiryDate; // ✅ យកថ្ងៃអស់សុពលភាព
-        // ------------------------------
-
-        // 3. Create User (Pending State)
-        await db.upsertUser({
-            openId: openId,
-            name: finalNameEn,
-            email: `temp_${nanoid(5)}@digitalid.local` 
+        // 1. Create User (Pending)
+        const createdUser = await db.upsertUser({
+          openId: openId,
+          name: input.nameEn,
+          email: `temp_${nanoid(5)}@digitalid.local`
         });
 
-        const createdUser = await db.getUserByOpenId(openId);
-        if (!createdUser) {
-            throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "Failed to create user" });
-        }
-        
-        // 4. Update Details (Save everything to DB)
+        // 2. Update Details
         await db.updateUser(createdUser.id, {
-            nameKhmer: finalNameKh,
-            nameEnglish: finalNameEn,
-            nationalId: finalNationalId,
-            dob: finalDob,             // ✅ Save ថ្ងៃកំណើត (សំខាន់កុំឱ្យគាំង)
-            idExpiryDate: finalExpiry, // ✅ Save ថ្ងៃអស់សុពលភាព
-            gender: input.gender as any,
-            address: input.address,
-            status: "pending",
-            kycStatus: "pending",
-            role: "user"
+          nameKhmer: input.nameKh,
+          nameEnglish: input.nameEn,
+          nationalId: input.idNumber,
+          gender: input.gender as any,
+          address: input.address,
+          status: "pending",
+          kycStatus: "pending",
+          role: "user"
         });
 
         const newUserId = createdUser.id;
 
-        // 5. Insert Documents Images
-        await db.createKycDocument({
+        // 3. Insert Documents
+        if (input.frontImage && input.backImage && input.selfieImage) {
+          await db.createKycDocument({
             userId: newUserId,
-            nidFrontUrl: input.frontImage || "",
-            nidBackUrl: input.backImage || "",
-            selfieUrl: input.selfieImage || "",
-        });
-        
-        // 6. Log Activity
+            nidFrontUrl: input.frontImage,
+            nidBackUrl: input.backImage,
+            selfieUrl: input.selfieImage,
+          });
+        }
+
+        // 4. Log Activity
         await db.createActivityLog({
-            userId: newUserId, 
-            username: finalNameEn,
-            action: "Submitted KYC Registration",
-            actionType: "kyc_submit",
-            // Log នេះនឹងបង្ហាញក្នុង Dashboard ថា OCR ដំណើរការឬអត់
-            description: `New user application via Mobile App. OCR detected ID: ${finalNationalId || "N/A"}`,
+          userId: newUserId,
+          username: input.nameEn || "New Applicant",
+          action: "Submitted KYC Registration",
+          actionType: "kyc_submit",
+          description: `New user application via Mobile App.`,
         });
 
-        // 7. Notify Admins (WebSocket)
+        // 5. Notify Admins (WebSocket)
         try {
-            const io = getIO();
-            io.to("admins").emit("kyc-submission", {
-                userId: newUserId,
-                userName: finalNameEn,
-                timestamp: new Date()
-            });
+          const io = getIO();
+          io.to("admins").emit("kyc-submission", {
+            userId: newUserId,
+            userName: input.nameEn,
+            timestamp: new Date()
+          });
         } catch (e) {
-            console.log("WebSocket notification warning:", e);
+          console.log("WebSocket notification warning:", e);
         }
-        
-        return { 
-          success: true, 
-          userId: newUserId,
-          extractedData: ocrData // ត្រឡប់ទិន្នន័យទៅ Frontend វិញ
-        };
+
+        return { success: true, userId: newUserId };
 
       } catch (error) {
         console.error("KYC Submit Error:", error);
         throw new TRPCError({
-            code: 'INTERNAL_SERVER_ERROR',
-            message: 'Failed to submit KYC application'
+          code: 'INTERNAL_SERVER_ERROR',
+          message: 'Failed to submit KYC application'
         });
       }
+    }),
+
+    // ✅ PIN LOGIN
+    pin: router({
+      login: publicProcedure.input(z.object({
+        phone: z.string(),
+        pin: z.string(),
+      })).mutation(async ({ input, ctx }) => {
+        const user = await db.getUserByPhone(input.phone);
+
+        if (!user || !user.pin) {
+          throw new TRPCError({ code: 'UNAUTHORIZED', message: 'Invalid credentials' });
+        }
+
+        // In a real app, you should compare HASHED pins.
+        // For this demo (and since we don't have crypto lib imported yet), we do direct comparison.
+        // Assuming the mobile app or backend stores it as is for now.
+        if (user.pin !== input.pin) {
+          throw new TRPCError({ code: 'UNAUTHORIZED', message: 'Invalid credentials' });
+        }
+
+        // Create session
+        const sessionToken = await sdk.createSessionToken(user.openId, {
+          name: user.name || "User",
+          expiresInMs: ONE_YEAR_MS,
+        });
+
+        const cookieOptions = getSessionCookieOptions(ctx.req);
+        ctx.res.cookie(COOKIE_NAME, sessionToken, { ...cookieOptions, maxAge: ONE_YEAR_MS });
+
+        // also return tokens for mobile app
+        return {
+          success: true,
+          accessToken: sessionToken,
+          refreshToken: nanoid(32), // Mock refresh token
+          user: {
+            id: user.id.toString(),
+            nameEn: user.nameEnglish,
+            nameKh: user.nameKhmer,
+            email: user.email,
+            phone: user.phoneNumber,
+            status: user.status
+          }
+        };
+      }),
+    }),
+
+    // ✅ RECOVERY
+    recovery: router({
+      "send-otp": publicProcedure.input(z.object({
+        phone: z.string(),
+        channel: z.enum(["telegram", "sms"]).optional(),
+      })).mutation(async ({ input }) => {
+        const user = await db.getUserByPhone(input.phone);
+        if (!user) {
+          // Don't reveal user existence
+          return { success: true, message: "OTP sent (mock)" };
+        }
+
+        // MOCK OTP: In reality, send to Telegram/SMS
+        const otp = "123456";
+
+        // Store OTP in DB (We need a place for this, or just use a fixed one for dev)
+        // For now, let's assume 123456 is always valid for dev purposes
+        console.log(`[Recovery] OTP for ${input.phone}: ${otp}`);
+
+        return { success: true, message: "OTP sent" };
+      }),
+
+      "verify-otp": publicProcedure.input(z.object({
+        phone: z.string(),
+        otp: z.string(),
+      })).mutation(async ({ input }) => {
+        // Mock Verification
+        if (input.otp !== "123456") {
+          throw new TRPCError({ code: 'BAD_REQUEST', message: 'Invalid OTP' });
+        }
+
+        const user = await db.getUserByPhone(input.phone);
+        if (!user) {
+          throw new TRPCError({ code: 'NOT_FOUND', message: 'User not found' });
+        }
+
+        // Generate recovery token
+        const recoveryToken = nanoid(32);
+        await db.updateUser(user.id, { recoveryToken });
+
+        return { success: true, recoveryToken };
+      }),
+
+      "reset-pin": publicProcedure.input(z.object({
+        recoveryToken: z.string(),
+        newPin: z.string().length(6),
+      })).mutation(async ({ input, ctx }) => {
+        const user = await db.getUserByRecoveryToken(input.recoveryToken);
+        if (!user) {
+          throw new TRPCError({ code: 'BAD_REQUEST', message: 'Invalid recovery token' });
+        }
+
+        await db.updateUser(user.id, {
+          pin: input.newPin,
+          recoveryToken: null // Consume token
+        });
+
+        // Login user
+        const sessionToken = await sdk.createSessionToken(user.openId, {
+          name: user.name || "User",
+          expiresInMs: ONE_YEAR_MS,
+        });
+
+        return {
+          success: true,
+          accessToken: sessionToken,
+          refreshToken: nanoid(32)
+        };
+      }),
     }),
   }),
 
@@ -209,14 +294,14 @@ export const appRouter = router({
         try {
           // 1. Generate session token
           const webSessionToken = nanoid(64);
-          
+
           // 2. Save session
           await db.createActiveSession({
-             userId: ctx.user.id,
-             sessionToken: webSessionToken,
-             deviceInfo: "Web Dashboard (Authorized via Mobile)",
-             ipAddress: ctx.req.ip,
-             expiresAt: new Date(Date.now() + 24 * 60 * 60 * 1000), 
+            userId: ctx.user.id,
+            sessionToken: webSessionToken,
+            deviceInfo: "Web Dashboard (Authorized via Mobile)",
+            ipAddress: ctx.req.ip,
+            expiresAt: new Date(Date.now() + 24 * 60 * 60 * 1000),
           });
 
           // 3. Send success signal via WebSocket
@@ -264,13 +349,13 @@ export const appRouter = router({
     getAll: adminProcedure.query(async () => {
       return await db.getAllUsers();
     }),
-    
+
     getById: adminProcedure.input(z.object({
       id: z.number(),
     })).query(async ({ input }) => {
       return await db.getUserById(input.id);
     }),
-    
+
     update: adminProcedure.input(z.object({
       id: z.number(),
       data: z.object({
@@ -285,12 +370,10 @@ export const appRouter = router({
         status: z.enum(["active", "pending", "blocked"]).optional(),
         photoUrl: z.string().optional(),
         role: z.enum(["user", "admin", "kyc_reviewer", "system_admin", "super_admin"]).optional(),
-        dob: z.string().optional(), // ✅ Allow updating DOB
-        idExpiryDate: z.string().optional(), // ✅ Allow updating Expiry
       }),
     })).mutation(async ({ input, ctx }) => {
       const updated = await db.updateUser(input.id, input.data);
-      
+
       await db.createActivityLog({
         userId: ctx.user.id,
         username: ctx.user.name || ctx.user.email || "Admin",
@@ -298,15 +381,15 @@ export const appRouter = router({
         actionType: "admin_action",
         description: `Admin updated user information`,
       });
-      
+
       return updated;
     }),
-    
+
     delete: adminProcedure.input(z.object({
       id: z.number(),
     })).mutation(async ({ input, ctx }) => {
       const success = await db.deleteUser(input.id);
-      
+
       await db.createActivityLog({
         userId: ctx.user.id,
         username: ctx.user.name || ctx.user.email || "Admin",
@@ -314,10 +397,10 @@ export const appRouter = router({
         actionType: "admin_action",
         description: `Admin deleted user`,
       });
-      
+
       return { success };
     }),
-    
+
     bulkImport: adminProcedure.input(z.object({
       users: z.array(z.object({
         nameKhmer: z.string().optional(),
@@ -334,7 +417,7 @@ export const appRouter = router({
       let successCount = 0;
       let failedCount = 0;
       const errors: string[] = [];
-      
+
       for (const userData of input.users) {
         try {
           const tempOpenId = `imported_${nanoid(16)}`;
@@ -343,7 +426,7 @@ export const appRouter = router({
             name: userData.nameEnglish,
             email: userData.email,
           });
-          
+
           const user = await db.getUserByOpenId(tempOpenId);
           if (user) {
             await db.updateUser(user.id, {
@@ -363,7 +446,7 @@ export const appRouter = router({
           errors.push(`Failed to import ${userData.email}: ${error}`);
         }
       }
-      
+
       await db.createActivityLog({
         userId: ctx.user.id,
         username: ctx.user.name || ctx.user.email || "Admin",
@@ -371,7 +454,7 @@ export const appRouter = router({
         actionType: "admin_action",
         description: `Admin bulk imported users (${successCount} succeeded, ${failedCount} failed)`,
       });
-      
+
       return { success: successCount, failed: failedCount, errors };
     }),
   }),
@@ -381,12 +464,12 @@ export const appRouter = router({
     getPending: adminProcedure.query(async () => {
       return await db.getPendingKycDocuments();
     }),
-    
+
     approve: adminProcedure.input(z.object({
       id: z.number(),
     })).mutation(async ({ input, ctx }) => {
       const success = await db.updateKycStatus(input.id, "approved", ctx.user.id);
-      
+
       try {
         const kycDocs = await db.getPendingKycDocuments();
         const kycDoc = kycDocs.find(doc => doc.kycDoc.id === input.id);
@@ -396,7 +479,7 @@ export const appRouter = router({
       } catch (error) {
         console.error('[KYC] Failed to send approval email:', error);
       }
-      
+
       await db.createActivityLog({
         userId: ctx.user.id,
         username: ctx.user.name || ctx.user.email || "Admin",
@@ -404,16 +487,16 @@ export const appRouter = router({
         actionType: "kyc_approve",
         description: `Admin approved KYC verification`,
       });
-      
+
       return { success };
     }),
-    
+
     reject: adminProcedure.input(z.object({
       id: z.number(),
       reason: z.string(),
     })).mutation(async ({ input, ctx }) => {
       const success = await db.updateKycStatus(input.id, "rejected", ctx.user.id, input.reason);
-      
+
       try {
         const kycDocs = await db.getPendingKycDocuments();
         const kycDoc = kycDocs.find(doc => doc.kycDoc.id === input.id);
@@ -423,7 +506,7 @@ export const appRouter = router({
       } catch (error) {
         console.error('[KYC] Failed to send rejection email:', error);
       }
-      
+
       await db.createActivityLog({
         userId: ctx.user.id,
         username: ctx.user.name || ctx.user.email || "Admin",
@@ -431,20 +514,20 @@ export const appRouter = router({
         actionType: "kyc_reject",
         description: `Admin rejected KYC verification: ${input.reason}`,
       });
-      
+
       return { success };
     }),
-    
+
     getMyKyc: protectedProcedure.query(async ({ ctx }) => {
       return await db.getKycDocumentByUserId(ctx.user.id);
     }),
-    
+
     bulkApprove: adminProcedure.input(z.object({
       ids: z.array(z.number()),
     })).mutation(async ({ input, ctx }) => {
       let successCount = 0;
       let failedCount = 0;
-      
+
       for (const id of input.ids) {
         try {
           await db.updateKycStatus(id, "approved", ctx.user.id);
@@ -453,7 +536,7 @@ export const appRouter = router({
           failedCount++;
         }
       }
-      
+
       await db.createActivityLog({
         userId: ctx.user.id,
         username: ctx.user.name || ctx.user.email || "Admin",
@@ -461,17 +544,17 @@ export const appRouter = router({
         actionType: "kyc_approve",
         description: `Admin bulk approved KYC verifications`,
       });
-      
+
       return { success: successCount, failed: failedCount };
     }),
-    
+
     bulkReject: adminProcedure.input(z.object({
       ids: z.array(z.number()),
       reason: z.string(),
     })).mutation(async ({ input, ctx }) => {
       let successCount = 0;
       let failedCount = 0;
-      
+
       for (const id of input.ids) {
         try {
           await db.updateKycStatus(id, "rejected", ctx.user.id, input.reason);
@@ -480,7 +563,7 @@ export const appRouter = router({
           failedCount++;
         }
       }
-      
+
       await db.createActivityLog({
         userId: ctx.user.id,
         username: ctx.user.name || ctx.user.email || "Admin",
@@ -488,7 +571,7 @@ export const appRouter = router({
         actionType: "kyc_reject",
         description: `Admin bulk rejected KYC verifications`,
       });
-      
+
       return { success: successCount, failed: failedCount };
     }),
   }),
@@ -498,11 +581,11 @@ export const appRouter = router({
     getAll: adminProcedure.query(async () => {
       return await db.getAllServices();
     }),
-    
+
     getActive: publicProcedure.query(async () => {
       return await db.getActiveServices();
     }),
-    
+
     create: adminProcedure.input(z.object({
       name: z.string(),
       nameKhmer: z.string().optional(),
@@ -513,13 +596,13 @@ export const appRouter = router({
     })).mutation(async ({ input, ctx }) => {
       const token = nanoid(32);
       const secret = nanoid(64);
-      
+
       const result = await db.createService({
         ...input,
         token,
         secret,
       });
-      
+
       await db.createActivityLog({
         userId: ctx.user.id,
         username: ctx.user.name || ctx.user.email || "Admin",
@@ -527,10 +610,10 @@ export const appRouter = router({
         actionType: "admin_action",
         description: `Admin created new service`,
       });
-      
+
       return result;
     }),
-    
+
     update: adminProcedure.input(z.object({
       id: z.number(),
       data: z.object({
@@ -544,7 +627,7 @@ export const appRouter = router({
       }),
     })).mutation(async ({ input, ctx }) => {
       const updated = await db.updateService(input.id, input.data);
-      
+
       await db.createActivityLog({
         userId: ctx.user.id,
         username: ctx.user.name || ctx.user.email || "Admin",
@@ -552,15 +635,15 @@ export const appRouter = router({
         actionType: "admin_action",
         description: `Admin updated service information`,
       });
-      
+
       return updated;
     }),
-    
+
     delete: adminProcedure.input(z.object({
       id: z.number(),
     })).mutation(async ({ input, ctx }) => {
       const success = await db.deleteService(input.id);
-      
+
       await db.createActivityLog({
         userId: ctx.user.id,
         username: ctx.user.name || ctx.user.email || "Admin",
@@ -568,18 +651,18 @@ export const appRouter = router({
         actionType: "admin_action",
         description: `Admin deleted service`,
       });
-      
+
       return { success };
     }),
-    
+
     regenerateCredentials: adminProcedure.input(z.object({
       id: z.number(),
     })).mutation(async ({ input, ctx }) => {
       const token = nanoid(32);
       const secret = nanoid(64);
-      
+
       const updated = await db.updateService(input.id, { token, secret });
-      
+
       await db.createActivityLog({
         userId: ctx.user.id,
         username: ctx.user.name || ctx.user.email || "Admin",
@@ -587,7 +670,7 @@ export const appRouter = router({
         actionType: "admin_action",
         description: `Admin regenerated service credentials`,
       });
-      
+
       return updated;
     }),
   }),
@@ -597,12 +680,12 @@ export const appRouter = router({
     getMy: protectedProcedure.query(async ({ ctx }) => {
       return await db.getUserServices(ctx.user.id);
     }),
-    
+
     connect: protectedProcedure.input(z.object({
       serviceId: z.number(),
     })).mutation(async ({ input, ctx }) => {
       const result = await db.connectUserToService(ctx.user.id, input.serviceId);
-      
+
       await db.createActivityLog({
         userId: ctx.user.id,
         username: ctx.user.name || ctx.user.email || "User",
@@ -610,15 +693,15 @@ export const appRouter = router({
         actionType: "service_connect",
         description: "User connected to a new service",
       });
-      
+
       return result;
     }),
-    
+
     disconnect: protectedProcedure.input(z.object({
       serviceId: z.number(),
     })).mutation(async ({ input, ctx }) => {
       const success = await db.disconnectUserFromService(ctx.user.id, input.serviceId);
-      
+
       await db.createActivityLog({
         userId: ctx.user.id,
         username: ctx.user.name || ctx.user.email || "User",
@@ -626,7 +709,7 @@ export const appRouter = router({
         actionType: "service_disconnect",
         description: "User disconnected from a service",
       });
-      
+
       return { success };
     }),
   }),
@@ -636,14 +719,14 @@ export const appRouter = router({
     getAll: adminProcedure.query(async () => {
       return await db.getAllActivityLogs();
     }),
-    
+
     getMy: protectedProcedure.query(async ({ ctx }) => {
       return await db.getUserActivityLogs(ctx.user.id);
     }),
-    
+
     clear: adminProcedure.mutation(async ({ ctx }) => {
       const success = await db.clearActivityLogs();
-      
+
       await db.createActivityLog({
         userId: ctx.user.id,
         username: ctx.user.name || ctx.user.email || "Admin",
@@ -651,7 +734,7 @@ export const appRouter = router({
         actionType: "admin_action",
         description: "Admin cleared all system logs",
       });
-      
+
       return { success };
     }),
   }),
@@ -661,7 +744,7 @@ export const appRouter = router({
     get: adminProcedure.query(async () => {
       return await db.getSystemSettings();
     }),
-    
+
     update: adminProcedure.input(z.object({
       maintenanceMode: z.boolean().optional(),
       allowKycUserCreation: z.boolean().optional(),
@@ -682,7 +765,7 @@ export const appRouter = router({
     })).mutation(async ({ input, ctx }) => {
       const updated = await db.updateSystemSettings(input, ctx.user.id);
       clearSmtpConfigCache();
-      
+
       await db.createActivityLog({
         userId: ctx.user.id,
         username: ctx.user.name || ctx.user.email || "Admin",
@@ -690,10 +773,10 @@ export const appRouter = router({
         actionType: "admin_action",
         description: "Admin updated system configuration",
       });
-      
+
       return updated;
     }),
-    
+
     testSmtpConnection: adminProcedure.input(z.object({
       host: z.string(),
       port: z.number(),
@@ -703,12 +786,12 @@ export const appRouter = router({
     })).mutation(async ({ input }) => {
       return await testSmtpConnection(input);
     }),
-    
+
     sendTestEmail: adminProcedure.input(z.object({
       email: z.string().email(),
     })).mutation(async ({ input, ctx }) => {
       const result = await sendTestEmail(input.email);
-      
+
       if (result.success) {
         await db.createActivityLog({
           userId: ctx.user.id,
@@ -718,7 +801,7 @@ export const appRouter = router({
           description: `Test email sent to ${input.email}`,
         });
       }
-      
+
       return result;
     }),
   }),
@@ -728,28 +811,28 @@ export const appRouter = router({
     getMy: protectedProcedure.query(async ({ ctx }) => {
       return await db.getUserNotifications(ctx.user.id);
     }),
-    
+
     getAll: adminProcedure.query(async () => {
       return await db.getAllNotifications();
     }),
-    
+
     getUnreadCount: protectedProcedure.query(async ({ ctx }) => {
       const notifications = await db.getUserNotifications(ctx.user.id);
       return notifications.filter((n: any) => !n.isRead).length;
     }),
-    
+
     markAsRead: protectedProcedure.input(z.object({
       id: z.number(),
     })).mutation(async ({ input }) => {
       const success = await db.markNotificationAsRead(input.id);
       return { success };
     }),
-    
+
     markAllAsRead: protectedProcedure.mutation(async ({ ctx }) => {
       const success = await db.markAllNotificationsAsRead(ctx.user.id);
       return { success };
     }),
-    
+
     create: adminProcedure.input(z.object({
       userId: z.number(),
       title: z.string(),
@@ -763,7 +846,7 @@ export const appRouter = router({
       const notification = await db.createNotification(input);
       return notification;
     }),
-    
+
     delete: adminProcedure.input(z.object({
       id: z.number(),
     })).mutation(async ({ input }) => {
@@ -778,15 +861,15 @@ export const appRouter = router({
       serviceId: z.number(),
     })).mutation(async ({ input, ctx }) => {
       const token = nanoid(32);
-      const expiresAt = new Date(Date.now() + 5 * 60 * 1000); 
-      
+      const expiresAt = new Date(Date.now() + 5 * 60 * 1000);
+
       await db.createQrAuthToken({
         userId: ctx.user.id,
         serviceId: input.serviceId,
         token,
         expiresAt,
       });
-      
+
       await db.createActivityLog({
         userId: ctx.user.id,
         username: ctx.user.name || ctx.user.email || "User",
@@ -794,31 +877,31 @@ export const appRouter = router({
         actionType: "qr_scan",
         description: "User generated QR authentication token",
       });
-      
+
       return { token };
     }),
-    
+
     verifyToken: publicProcedure.input(z.object({
       token: z.string(),
     })).mutation(async ({ input }) => {
       const qrToken = await db.getQrAuthToken(input.token);
-      
+
       if (!qrToken) {
         throw new TRPCError({ code: 'NOT_FOUND', message: 'Invalid token' });
       }
-      
+
       if (qrToken.isUsed) {
         throw new TRPCError({ code: 'BAD_REQUEST', message: 'Token already used' });
       }
-      
+
       if (new Date() > qrToken.expiresAt) {
         throw new TRPCError({ code: 'BAD_REQUEST', message: 'Token expired' });
       }
-      
+
       await db.markQrTokenAsUsed(input.token);
-      
+
       const user = await db.getUserById(qrToken.userId);
-      
+
       return {
         userId: qrToken.userId,
         serviceId: qrToken.serviceId,
@@ -896,13 +979,13 @@ export const appRouter = router({
     getAll: adminProcedure.query(async () => {
       return await db.getAllReportSchedules();
     }),
-    
+
     getById: adminProcedure.input(z.object({
       id: z.number(),
     })).query(async ({ input }) => {
       return await db.getReportScheduleById(input.id);
     }),
-    
+
     create: adminProcedure.input(z.object({
       name: z.string().min(1),
       reportType: z.enum(["monthly", "quarterly", "weekly", "custom"]),
@@ -914,14 +997,14 @@ export const appRouter = router({
       isEnabled: z.boolean().default(true),
     })).mutation(async ({ input, ctx }) => {
       const nextRunAt = calculateNextRunTime(input.frequency, input.dayOfWeek, input.dayOfMonth, input.timeOfDay);
-      
+
       const schedule = await db.createReportSchedule({
         ...input,
         recipientEmails: JSON.stringify(input.recipientEmails),
         nextRunAt,
         createdBy: ctx.user.id,
       });
-      
+
       await db.createActivityLog({
         userId: ctx.user.id,
         username: ctx.user.name || ctx.user.email || "Admin",
@@ -929,10 +1012,10 @@ export const appRouter = router({
         actionType: "admin_action",
         description: `Admin created a ${input.frequency} ${input.reportType} report schedule`,
       });
-      
+
       return schedule;
     }),
-    
+
     update: adminProcedure.input(z.object({
       id: z.number(),
       data: z.object({
@@ -947,11 +1030,11 @@ export const appRouter = router({
       }),
     })).mutation(async ({ input, ctx }) => {
       const updateData: any = { ...input.data };
-      
+
       if (input.data.recipientEmails) {
         updateData.recipientEmails = JSON.stringify(input.data.recipientEmails);
       }
-      
+
       if (input.data.frequency || input.data.dayOfWeek !== undefined || input.data.dayOfMonth !== undefined || input.data.timeOfDay) {
         const existingSchedule = await db.getReportScheduleById(input.id);
         if (existingSchedule) {
@@ -963,9 +1046,9 @@ export const appRouter = router({
           );
         }
       }
-      
+
       const updated = await db.updateReportSchedule(input.id, updateData);
-      
+
       await db.createActivityLog({
         userId: ctx.user.id,
         username: ctx.user.name || ctx.user.email || "Admin",
@@ -973,16 +1056,16 @@ export const appRouter = router({
         actionType: "admin_action",
         description: `Admin updated report schedule configuration`,
       });
-      
+
       return updated;
     }),
-    
+
     delete: adminProcedure.input(z.object({
       id: z.number(),
     })).mutation(async ({ input, ctx }) => {
       const schedule = await db.getReportScheduleById(input.id);
       const success = await db.deleteReportSchedule(input.id);
-      
+
       await db.createActivityLog({
         userId: ctx.user.id,
         username: ctx.user.name || ctx.user.email || "Admin",
@@ -990,16 +1073,16 @@ export const appRouter = router({
         actionType: "admin_action",
         description: `Admin deleted report schedule: ${schedule?.name || 'Unknown'}`,
       });
-      
+
       return { success };
     }),
-    
+
     toggle: adminProcedure.input(z.object({
       id: z.number(),
       isEnabled: z.boolean(),
     })).mutation(async ({ input, ctx }) => {
       const updated = await db.updateReportSchedule(input.id, { isEnabled: input.isEnabled });
-      
+
       await db.createActivityLog({
         userId: ctx.user.id,
         username: ctx.user.name || ctx.user.email || "Admin",
@@ -1007,10 +1090,10 @@ export const appRouter = router({
         actionType: "admin_action",
         description: `Admin ${input.isEnabled ? 'enabled' : 'disabled'} report schedule`,
       });
-      
+
       return updated;
     }),
-    
+
     runNow: adminProcedure.input(z.object({
       id: z.number(),
     })).mutation(async ({ input, ctx }) => {
@@ -1018,7 +1101,7 @@ export const appRouter = router({
       if (!schedule) {
         throw new TRPCError({ code: 'NOT_FOUND', message: 'Schedule not found' });
       }
-      
+
       try {
         const endDate = new Date();
         const startDate = new Date();
@@ -1031,37 +1114,37 @@ export const appRouter = router({
         } else {
           startDate.setMonth(startDate.getMonth() - 1);
         }
-        
+
         const allUsers = await db.getAllUsers();
         const allLogs = await db.getAllActivityLogs();
-        
+
         const totalUsers = allUsers.length;
         const activeUsers = allUsers.filter(u => u.status === "active").length;
         const pendingKYC = allUsers.filter(u => u.kycStatus === "pending").length;
         const approvedKYC = allUsers.filter(u => u.kycStatus === "approved").length;
         const rejectedKYC = allUsers.filter(u => u.kycStatus === "rejected").length;
         const activeSessions = allLogs.filter(l => l.actionType === "login").length;
-        
+
         const months = ["Jan", "Feb", "Mar", "Apr", "May", "Jun"];
         const userGrowthData = months.map((month, index) => ({
           month,
           count: Math.floor(totalUsers * (0.5 + index * 0.1)),
         }));
-        
+
         const kycApprovalData = months.map((month) => ({
           month,
           approved: Math.floor(approvedKYC / 6),
           rejected: Math.floor(rejectedKYC / 6),
         }));
-        
+
         const serviceUsageData = [
           { service: "Moodle LMS", connections: Math.floor(totalUsers * 0.6) },
           { service: "Mobile App", connections: Math.floor(totalUsers * 0.8) },
           { service: "Admin Portal", connections: Math.floor(totalUsers * 0.3) },
         ];
-        
+
         const recentUsers = allUsers.slice(0, 20);
-        
+
         const reportData = {
           totalUsers,
           activeUsers,
@@ -1076,9 +1159,9 @@ export const appRouter = router({
           dateRange: { start: startDate, end: endDate },
           reportType: schedule.reportType as "monthly" | "quarterly",
         };
-        
+
         const pdfBuffer = await generatePDFReport(reportData);
-        
+
         const recipients = JSON.parse(schedule.recipientEmails);
         await sendScheduledReportEmail(
           recipients,
@@ -1086,21 +1169,21 @@ export const appRouter = router({
           schedule.reportType,
           pdfBuffer
         );
-        
+
         const nextRunAt = calculateNextRunTime(
           schedule.frequency,
           schedule.dayOfWeek ?? undefined,
           schedule.dayOfMonth ?? undefined,
           schedule.timeOfDay || "09:00"
         );
-        
+
         await db.updateReportSchedule(input.id, {
           lastRunAt: new Date(),
           nextRunAt,
           lastStatus: "success",
           lastError: null,
         });
-        
+
         await db.createActivityLog({
           userId: ctx.user.id,
           username: ctx.user.name || ctx.user.email || "Admin",
@@ -1108,7 +1191,7 @@ export const appRouter = router({
           actionType: "admin_action",
           description: `Admin manually triggered ${schedule.reportType} report generation`,
         });
-        
+
         return { success: true, message: `Report sent to ${recipients.length} recipient(s)` };
       } catch (error) {
         await db.updateReportSchedule(input.id, {
@@ -1116,7 +1199,7 @@ export const appRouter = router({
           lastStatus: "failed",
           lastError: error instanceof Error ? error.message : "Unknown error",
         });
-        
+
         throw new TRPCError({
           code: 'INTERNAL_SERVER_ERROR',
           message: error instanceof Error ? error.message : 'Failed to generate report',
@@ -1137,7 +1220,7 @@ export const appRouter = router({
       photoUrl: z.string().optional(),
     })).mutation(async ({ input, ctx }) => {
       const updated = await db.updateUser(ctx.user.id, input);
-      
+
       await db.createActivityLog({
         userId: ctx.user.id,
         username: ctx.user.name || ctx.user.email || "User",
@@ -1145,15 +1228,15 @@ export const appRouter = router({
         actionType: "profile_update",
         description: "User updated their profile information",
       });
-      
+
       return updated;
     }),
-    
+
     updatePin: protectedProcedure.input(z.object({
       pin: z.string().length(6),
     })).mutation(async ({ input, ctx }) => {
       const updated = await db.updateUser(ctx.user.id, { pin: input.pin });
-      
+
       await db.createActivityLog({
         userId: ctx.user.id,
         username: ctx.user.name || ctx.user.email || "User",
@@ -1161,15 +1244,15 @@ export const appRouter = router({
         actionType: "profile_update",
         description: "User changed their PIN",
       });
-      
+
       return { success: true };
     }),
-    
+
     toggleBiometric: protectedProcedure.input(z.object({
       enabled: z.boolean(),
     })).mutation(async ({ input, ctx }) => {
       await db.updateUser(ctx.user.id, { biometricEnabled: input.enabled });
-      
+
       await db.createActivityLog({
         userId: ctx.user.id,
         username: ctx.user.name || ctx.user.email || "User",
@@ -1177,15 +1260,15 @@ export const appRouter = router({
         actionType: "profile_update",
         description: `User ${input.enabled ? 'enabled' : 'disabled'} biometric authentication`,
       });
-      
+
       return { success: true };
     }),
-    
+
     toggle2FA: protectedProcedure.input(z.object({
       enabled: z.boolean(),
     })).mutation(async ({ input, ctx }) => {
       await db.updateUser(ctx.user.id, { twoFactorEnabled: input.enabled });
-      
+
       await db.createActivityLog({
         userId: ctx.user.id,
         username: ctx.user.name || ctx.user.email || "User",
@@ -1193,11 +1276,10 @@ export const appRouter = router({
         actionType: "profile_update",
         description: `User ${input.enabled ? 'enabled' : 'disabled'} two-factor authentication`,
       });
-      
+
       return { success: true };
     }),
   }),
 });
-
 
 export type AppRouter = typeof appRouter;

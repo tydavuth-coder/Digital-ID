@@ -1,53 +1,21 @@
-//import { eq, desc, and, sql, count, or, isNull } from "drizzle-orm";
-import { eq, desc, and, sql, count, or, isNull } from "drizzle-orm";
+import { eq, desc, and, sql, count, or } from "drizzle-orm";
 import { drizzle } from "drizzle-orm/mysql2";
-import { 
-  InsertUser, users, 
+import {
+  InsertUser, users,
   kycDocuments, InsertKycDocument,
   services, InsertService,
   userServices, InsertUserService,
   activityLogs, InsertActivityLog,
-  systemSettings, InsertSystemSettings, SystemSettings,
+  systemSettings, InsertSystemSettings,
   activeSessions, InsertActiveSession,
   notifications, InsertNotification,
   qrAuthTokens, InsertQrAuthToken,
-  reportSchedules, InsertReportSchedule, ReportSchedule
+  reportSchedules, InsertReportSchedule
 } from "../drizzle/schema";
 import { ENV } from './_core/env';
 
 let _db: ReturnType<typeof drizzle> | null = null;
-let fallbackSystemSettings: SystemSettings | null = null;
-let fallbackReportSchedules: ReportSchedule[] = [];
-let fallbackReportScheduleId = 1;
 
-function getFallbackSystemSettings(): SystemSettings {
-  if (!fallbackSystemSettings) {
-    const now = new Date();
-    fallbackSystemSettings = {
-      id: 1,
-      maintenanceMode: false,
-      allowKycUserCreation: true,
-      telegramBotToken: null,
-      telegramBotId: null,
-      smsProvider: null,
-      smsApiKey: null,
-      smsApiSecret: null,
-      smsSenderId: null,
-      smtpHost: null,
-      smtpPort: 587,
-      smtpSecure: false,
-      smtpUsername: null,
-      smtpPassword: null,
-      smtpFromEmail: null,
-      smtpFromName: null,
-      smtpEnabled: false,
-      updatedAt: now,
-      updatedBy: null,
-    };
-  }
-
-  return fallbackSystemSettings;
-}
 export async function getDb() {
   if (!_db && process.env.DATABASE_URL) {
     try {
@@ -131,6 +99,15 @@ export async function upsertUser(user: InsertUser): Promise<void> {
       values.idExpiryDate = user.idExpiryDate;
       updateSet.idExpiryDate = user.idExpiryDate;
     }
+    // Handle PIN and Recovery Token
+    if (user.pin !== undefined) {
+      values.pin = user.pin;
+      updateSet.pin = user.pin;
+    }
+    if (user.recoveryToken !== undefined) {
+      values.recoveryToken = user.recoveryToken;
+      updateSet.recoveryToken = user.recoveryToken;
+    }
 
     if (!values.lastSignedIn) {
       values.lastSignedIn = new Date();
@@ -153,6 +130,20 @@ export async function getUserByOpenId(openId: string) {
   const db = await getDb();
   if (!db) return undefined;
   const result = await db.select().from(users).where(eq(users.openId, openId)).limit(1);
+  return result.length > 0 ? result[0] : undefined;
+}
+
+export async function getUserByPhone(phone: string) {
+  const db = await getDb();
+  if (!db) return undefined;
+  const result = await db.select().from(users).where(eq(users.phoneNumber, phone)).limit(1);
+  return result.length > 0 ? result[0] : undefined;
+}
+
+export async function getUserByRecoveryToken(token: string) {
+  const db = await getDb();
+  if (!db) return undefined;
+  const result = await db.select().from(users).where(eq(users.recoveryToken, token)).limit(1);
   return result.length > 0 ? result[0] : undefined;
 }
 
@@ -194,10 +185,7 @@ export async function deleteUser(id: number) {
 export async function createKycDocument(doc: InsertKycDocument) {
   const db = await getDb();
   if (!db) return null;
-  const result = await db.insert(kycDocuments).values({
-    verificationStatus: "pending",
-    ...doc,
-  });
+  const result = await db.insert(kycDocuments).values(doc);
   return result;
 }
 
@@ -211,7 +199,7 @@ export async function getKycDocumentByUserId(userId: number) {
 export async function getPendingKycDocuments() {
   const db = await getDb();
   if (!db) return [];
-  
+
   // Join with users table to get user information
   const result = await db
     .select({
@@ -220,28 +208,28 @@ export async function getPendingKycDocuments() {
     })
     .from(kycDocuments)
     .leftJoin(users, eq(kycDocuments.userId, users.id))
-    .where(or(eq(kycDocuments.verificationStatus, "pending"), isNull(kycDocuments.verificationStatus)))
+    .where(eq(kycDocuments.verificationStatus, "pending"))
     .orderBy(desc(kycDocuments.createdAt));
-  
+
   return result;
 }
 
 export async function updateKycStatus(
-  id: number, 
-  status: "approved" | "rejected", 
+  id: number,
+  status: "approved" | "rejected",
   verifiedBy: number,
   rejectionReason?: string
 ) {
   const db = await getDb();
   if (!db) return null;
-  
+
   await db.update(kycDocuments).set({
     verificationStatus: status,
     verifiedBy,
     verifiedAt: new Date(),
     rejectionReason: rejectionReason || null,
   }).where(eq(kycDocuments.id, id));
-  
+
   // Also update user's KYC status
   const doc = await db.select().from(kycDocuments).where(eq(kycDocuments.id, id)).limit(1);
   if (doc.length > 0) {
@@ -251,7 +239,7 @@ export async function updateKycStatus(
       digitalIdVerified: status === "approved",
     }).where(eq(users.id, doc[0].userId));
   }
-  
+
   return true;
 }
 
@@ -312,7 +300,7 @@ export async function connectUserToService(userId: number, serviceId: number) {
 export async function getUserServices(userId: number) {
   const db = await getDb();
   if (!db) return [];
-  
+
   const result = await db
     .select({
       userService: userServices,
@@ -322,7 +310,7 @@ export async function getUserServices(userId: number) {
     .leftJoin(services, eq(userServices.serviceId, services.id))
     .where(eq(userServices.userId, userId))
     .orderBy(desc(userServices.connectedAt));
-  
+
   return result;
 }
 
@@ -370,9 +358,9 @@ export async function clearActivityLogs() {
 
 export async function getSystemSettings() {
   const db = await getDb();
-  if (!db) return getFallbackSystemSettings();
+  if (!db) return null;
   const result = await db.select().from(systemSettings).limit(1);
-  
+
   // If no settings exist, create default settings
   if (result.length === 0) {
     await db.insert(systemSettings).values({
@@ -382,31 +370,22 @@ export async function getSystemSettings() {
     const newResult = await db.select().from(systemSettings).limit(1);
     return newResult[0];
   }
-  
+
   return result[0];
 }
 
 export async function updateSystemSettings(data: Partial<InsertSystemSettings>, updatedBy: number) {
   const db = await getDb();
-  if (!db) {
-    const next = {
-      ...getFallbackSystemSettings(),
-      ...data,
-      updatedBy,
-      updatedAt: new Date(),
-    };
-    fallbackSystemSettings = next;
-    return next;
-  }
-  
+  if (!db) return null;
+
   const settings = await getSystemSettings();
   if (!settings) return null;
-  
+
   await db.update(systemSettings).set({
     ...data,
     updatedBy,
   }).where(eq(systemSettings.id, settings.id));
-  
+
   return await getSystemSettings();
 }
 
@@ -502,21 +481,14 @@ export async function markQrTokenAsUsed(tokenValue: string) {
 
 export async function getDashboardStats() {
   const db = await getDb();
-  if (!db) {
-    return {
-      totalUsers: 0,
-      pendingKyc: 0,
-      activeUsers: 0,
-      activeSessions: 0,
-    };
-  }
-  
+  if (!db) return null;
+
   const [totalUsersResult] = await db.select({ count: count() }).from(users);
   const [pendingKycResult] = await db.select({ count: count() }).from(users).where(eq(users.kycStatus, "pending"));
   const [activeUsersResult] = await db.select({ count: count() }).from(users).where(eq(users.status, "active"));
-  
+
   const activeSessionsList = await getActiveSessions();
-  
+
   return {
     totalUsers: totalUsersResult?.count || 0,
     pendingKyc: pendingKycResult?.count || 0,
@@ -529,42 +501,20 @@ export async function getDashboardStats() {
 
 export async function getAllReportSchedules() {
   const db = await getDb();
-  if (!db) return [...fallbackReportSchedules].sort((a, b) => b.createdAt.getTime() - a.createdAt.getTime());
+  if (!db) return [];
   return await db.select().from(reportSchedules).orderBy(desc(reportSchedules.createdAt));
 }
 
 export async function getReportScheduleById(id: number) {
   const db = await getDb();
-  if (!db) return fallbackReportSchedules.find((schedule) => schedule.id === id) || null;
+  if (!db) return null;
   const [schedule] = await db.select().from(reportSchedules).where(eq(reportSchedules.id, id)).limit(1);
   return schedule || null;
 }
 
 export async function createReportSchedule(data: InsertReportSchedule) {
   const db = await getDb();
-  if (!db) {
-    const now = new Date();
-    const schedule: ReportSchedule = {
-      id: fallbackReportScheduleId++,
-      name: data.name,
-      reportType: data.reportType,
-      frequency: data.frequency,
-      dayOfWeek: data.dayOfWeek ?? null,
-      dayOfMonth: data.dayOfMonth ?? null,
-      timeOfDay: data.timeOfDay ?? "09:00",
-      recipientEmails: data.recipientEmails,
-      isEnabled: data.isEnabled ?? true,
-      lastRunAt: data.lastRunAt ?? null,
-      nextRunAt: data.nextRunAt ?? null,
-      lastStatus: data.lastStatus ?? "pending",
-      lastError: data.lastError ?? null,
-      createdBy: data.createdBy,
-      createdAt: now,
-      updatedAt: now,
-    };
-    fallbackReportSchedules.push(schedule);
-    return schedule;
-  }
+  if (!db) return null;
   const result = await db.insert(reportSchedules).values(data);
   const insertId = result[0].insertId;
   return await getReportScheduleById(insertId);
@@ -572,48 +522,22 @@ export async function createReportSchedule(data: InsertReportSchedule) {
 
 export async function updateReportSchedule(id: number, data: Partial<InsertReportSchedule>) {
   const db = await getDb();
-  if (!db) {
-    const idx = fallbackReportSchedules.findIndex((schedule) => schedule.id === id);
-    if (idx === -1) return null;
-
-    const current = fallbackReportSchedules[idx];
-    const updated: ReportSchedule = {
-      ...current,
-      ...data,
-      dayOfWeek: data.dayOfWeek === undefined ? current.dayOfWeek : data.dayOfWeek,
-      dayOfMonth: data.dayOfMonth === undefined ? current.dayOfMonth : data.dayOfMonth,
-      lastRunAt: data.lastRunAt === undefined ? current.lastRunAt : data.lastRunAt,
-      nextRunAt: data.nextRunAt === undefined ? current.nextRunAt : data.nextRunAt,
-      lastError: data.lastError === undefined ? current.lastError : data.lastError,
-      updatedAt: new Date(),
-    };
-
-    fallbackReportSchedules[idx] = updated;
-    return updated;
-  }
+  if (!db) return null;
   await db.update(reportSchedules).set(data).where(eq(reportSchedules.id, id));
   return await getReportScheduleById(id);
 }
 
 export async function deleteReportSchedule(id: number) {
   const db = await getDb();
-  if (!db) {
-    const before = fallbackReportSchedules.length;
-    fallbackReportSchedules = fallbackReportSchedules.filter((schedule) => schedule.id !== id);
-    return fallbackReportSchedules.length < before;
-  }
+  if (!db) return false;
   await db.delete(reportSchedules).where(eq(reportSchedules.id, id));
   return true;
 }
 
 export async function getDueReportSchedules() {
   const db = await getDb();
+  if (!db) return [];
   const now = new Date();
-  if (!db) {
-    return fallbackReportSchedules.filter((schedule) =>
-      schedule.isEnabled && !!schedule.nextRunAt && schedule.nextRunAt <= now
-    );
-  }  
   return await db.select().from(reportSchedules)
     .where(
       and(
@@ -630,8 +554,6 @@ export async function createActiveSession(data: {
   ipAddress?: string;
   expiresAt: Date;
 }) {
-  const db = await getDb();
-  if (!db) return null;
   const [result] = await db.insert(activeSessions).values({
     userId: data.userId,
     sessionToken: data.sessionToken,
@@ -639,7 +561,6 @@ export async function createActiveSession(data: {
     ipAddress: data.ipAddress,
     expiresAt: data.expiresAt,
   });
-  
-  return result;
 
+  return result;
 }

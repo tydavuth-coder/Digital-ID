@@ -7,6 +7,7 @@ import { registerOAuthRoutes } from "./oauth";
 import { registerFirebaseAuthRoutes } from "./firebaseAuth";
 import { registerAuditExportRoutes } from "./auditExport";
 import { registerKycRoutes } from "./kyc";
+import { registerMobileAuthRoutes } from "./mobileAuth";
 import { appRouter } from "../routers";
 import { createContext } from "./context";
 import { serveStatic, setupVite } from "./vite";
@@ -42,18 +43,14 @@ async function startServer() {
   registerOAuthRoutes(app);
   // Firebase Email/Password auth session
   registerFirebaseAuthRoutes(app);
-  registerAuditExportRoutes(app);
+  // Mobile app REST endpoints
   registerKycRoutes(app);
+  registerMobileAuthRoutes(app);
+
+  registerAuditExportRoutes(app);
   // tRPC API
   app.use(
     "/api/trpc",
-    createExpressMiddleware({
-      router: appRouter,
-      createContext,
-    })
-  );
-    app.use(
-    "/trpc",
     createExpressMiddleware({
       router: appRouter,
       createContext,
