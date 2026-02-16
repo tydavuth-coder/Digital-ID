@@ -121,16 +121,22 @@ export function registerKycRoutes(app: Express) {
 
       const newUserId = createdUser.id;
 
-      await db.updateUser(newUserId, {
+      const updateData: any = {
         nameKhmer: input.nameKh,
         nameEnglish: finalNameEn,
-        nationalId: finalIdNumber,
-        gender: input.gender as any,
+        gender: input.gender,
         address: input.address,
         status: "pending",
         kycStatus: "pending",
         role: "user",
-      });
+      };
+
+      // Only update nationalId if we actually have one (to avoid unique constraint errors on empty strings)
+      if (finalIdNumber) {
+        updateData.nationalId = finalIdNumber;
+      }
+
+      await db.updateUser(newUserId, updateData);
 
       await db.createKycDocument({
         userId: newUserId,
