@@ -8,6 +8,7 @@ import { registerFirebaseAuthRoutes } from "./firebaseAuth";
 import { registerAuditExportRoutes } from "./auditExport";
 import { registerKycRoutes } from "./kyc";
 import { registerMobileAuthRoutes } from "./mobileAuth";
+import { registerRecoveryRoutes } from "./recovery"; // ✅ Import Recovery
 import { appRouter } from "../routers";
 import { createContext } from "./context";
 import { serveStatic, setupVite } from "./vite";
@@ -46,6 +47,7 @@ async function startServer() {
   // Mobile app REST endpoints
   registerKycRoutes(app);
   registerMobileAuthRoutes(app);
+  registerRecoveryRoutes(app); // ✅ Register Recovery Routes
 
   registerAuditExportRoutes(app);
   // tRPC API
