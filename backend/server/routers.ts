@@ -19,6 +19,9 @@ import { generatePDFReport, type ReportData } from "./reports";
 // ✅ IMPORT WEBSOCKET FUNCTIONS
 import { emitDashboardLoginSuccess, getIO } from "./websocket";
 import { sendTelegramMessage } from "./_core/telegram";
+import * as sdk from "./_core/sdk";
+
+const ONE_YEAR_MS = 365 * 24 * 60 * 60 * 1000;
 
 // Simple In-Memory OTP Store
 const otpStore = new Map<string, { code: string, expires: number }>();
