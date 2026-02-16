@@ -225,6 +225,69 @@ export default function RegisterScreen({ onBack, onFinish }: RegisterProps) {
 
   // --- RENDERERS ---
 
+  if (step === 'phone_input') {
+    return (
+      <SafeAreaView style={styles.container}>
+        <StatusBar barStyle="dark-content" />
+        <View style={styles.headerRow}>
+          <TouchableOpacity onPress={onBack}>
+            <Ionicons name="arrow-back" size={28} color="#0F172A" />
+          </TouchableOpacity>
+        </View>
+        <View style={{ padding: 24 }}>
+          <Text style={styles.titleMain}>Telegram Phone Number</Text>
+          <Text style={styles.stepText}>Enter the number connected to your Telegram account</Text>
+
+          <View style={{
+            marginTop: 30,
+            backgroundColor: 'white',
+            borderRadius: 16,
+            padding: 16,
+            borderWidth: 1,
+            borderColor: '#E2E8F0',
+            flexDirection: 'row',
+            alignItems: 'center'
+          }}>
+            <Text style={{ fontSize: 18, marginRight: 10, color: '#64748B' }}>+855</Text>
+            <View style={{ width: 1, height: 24, backgroundColor: '#E2E8F0', marginRight: 10 }} />
+            <TouchableOpacity style={{ flex: 1 }} onPress={() => {
+              Alert.prompt("Telegram Phone Number", "", [
+                { text: "Cancel", style: "cancel" },
+                {
+                  text: "OK", onPress: (phone) => {
+                    if (phone && phone.length >= 8) {
+                      setPhoneNumber(phone);
+                    } else {
+                      Alert.alert("Invalid", "Please enter valid phone number");
+                    }
+                  }
+                }
+              ], "plain-text", phoneNumber || "")
+            }}>
+              <Text style={{ fontSize: 18, color: phoneNumber ? '#0F172A' : '#CBD5E1' }}>
+                {phoneNumber || "Enter Number"}
+              </Text>
+            </TouchableOpacity>
+          </View>
+
+          <TouchableOpacity
+            style={{
+              marginTop: 24,
+              backgroundColor: phoneNumber ? '#2563EB' : '#94A3B8',
+              padding: 16,
+              borderRadius: 14,
+              alignItems: 'center'
+            }}
+            disabled={!phoneNumber}
+            onPress={() => setStep('front')}
+          >
+            <Text style={{ color: 'white', fontWeight: 'bold', fontSize: 16 }}>Continue</Text>
+          </TouchableOpacity>
+        </View>
+      </SafeAreaView>
+    );
+  }
+
   if (step === 'pending_approval') {
     return (
       <View style={styles.pendingContainer}>
@@ -346,70 +409,6 @@ export default function RegisterScreen({ onBack, onFinish }: RegisterProps) {
   }
 
   const isFlashBtnActive = (facing === 'back' && flash) || (facing === 'front' && selfieFlashOn);
-
-  if (step === 'phone_input') {
-    return (
-      <SafeAreaView style={styles.container}>
-        <StatusBar barStyle="dark-content" />
-        <View style={styles.headerRow}>
-          <TouchableOpacity onPress={onBack}>
-            <Ionicons name="arrow-back" size={28} color="#0F172A" />
-          </TouchableOpacity>
-        </View>
-        <View style={{ padding: 24 }}>
-          <Text style={styles.titleMain}>Enter Phone Number</Text>
-          <Text style={styles.stepText}>To create a secure account for you</Text>
-
-          <View style={{
-            marginTop: 30,
-            backgroundColor: 'white',
-            borderRadius: 16,
-            padding: 16,
-            borderWidth: 1,
-            borderColor: '#E2E8F0',
-            flexDirection: 'row',
-            alignItems: 'center'
-          }}>
-            <Text style={{ fontSize: 18, marginRight: 10, color: '#64748B' }}>+855</Text>
-            <View style={{ width: 1, height: 24, backgroundColor: '#E2E8F0', marginRight: 10 }} />
-            {/* Note: In a real app, use TextInput here. For this demo, we simulate input */}
-            <TouchableOpacity style={{ flex: 1 }} onPress={() => {
-              Alert.prompt("Enter Phone Number", "", [
-                { text: "Cancel", style: "cancel" },
-                {
-                  text: "OK", onPress: (phone) => {
-                    if (phone && phone.length >= 8) {
-                      setPhoneNumber(phone);
-                    } else {
-                      Alert.alert("Invalid", "Please enter valid phone number");
-                    }
-                  }
-                }
-              ], "plain-text", phoneNumber || "10284782")
-            }}>
-              <Text style={{ fontSize: 18, color: phoneNumber ? '#0F172A' : '#CBD5E1' }}>
-                {phoneNumber || "Enter Phone Number"}
-              </Text>
-            </TouchableOpacity>
-          </View>
-
-          <TouchableOpacity
-            style={{
-              marginTop: 24,
-              backgroundColor: phoneNumber ? '#2563EB' : '#94A3B8',
-              padding: 16,
-              borderRadius: 14,
-              alignItems: 'center'
-            }}
-            disabled={!phoneNumber}
-            onPress={() => setStep('front')}
-          >
-            <Text style={{ color: 'white', fontWeight: 'bold', fontSize: 16 }}>Continue</Text>
-          </TouchableOpacity>
-        </View>
-      </SafeAreaView>
-    );
-  }
 
   return (
     <SafeAreaView style={styles.container}>
