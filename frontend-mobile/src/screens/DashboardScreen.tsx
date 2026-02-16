@@ -1,10 +1,11 @@
 import React, { useState, useEffect } from 'react';
-import { 
-  StyleSheet, Text, View, TouchableOpacity, SafeAreaView, 
-  StatusBar, Image, ScrollView, Dimensions, Platform, Alert 
+import {
+  StyleSheet, Text, View, TouchableOpacity, SafeAreaView,
+  StatusBar, Image, ScrollView, Dimensions, Platform, Alert
 } from 'react-native';
 import { Ionicons, MaterialCommunityIcons, MaterialIcons } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';
+import { api } from '../api/client';
 
 const { width } = Dimensions.get('window');
 
@@ -41,15 +42,51 @@ interface DashboardProps {
 }
 
 export default function DashboardScreen({ onScanPress, onLogout, onEditProfile, onSettings, userData }: DashboardProps) {
-  
-  // ប្រើទិន្នន័យពី Register បើមាន, បើអត់ប្រើ Default
-  const profile = {
+  const [fetchedUser, setFetchedUser] = useState<any>(null);
+  const [loading, setLoading] = useState(false);
+
+  // Initialize with passed userData if available
+  const [profile, setProfile] = useState({
     name: userData?.nameEn || "Sophea Chan",
     id: userData?.idNumber || "123-456-789",
-    avatar: userData?.avatar || "https://i.pravatar.cc/150?img=5",
+    avatar: userData?.avatar || userData?.photoUrl || "https://i.pravatar.cc/150?img=5",
     validUntil: userData?.expiryDate || "Dec 2028",
-    status: "Digitally Verified"
+    status: userData?.status === 'active' ? "Digitally Verified" : "Pending Verification",
+    email: userData?.email || "sophea.chan@email.com",
+    phone: userData?.phone || userData?.phoneNumber || "12 345 678",
+    address: userData?.address || "#123, Preah Monivong Blvd, Phnom Penh"
+  });
+
+  const fetchUserProfile = async () => {
+    try {
+      setLoading(true);
+      // TRPC Query via GET usually: /api/trpc/auth.me?batch=1&input={} or just /api/trpc/auth.me
+      // Simply trying standard GET to see if it works with current setup
+      const res = await api.get('/trpc/auth.me');
+      if (res.data && res.data.result && res.data.result.data) {
+        const u = res.data.result.data;
+        setFetchedUser(u);
+        setProfile(prev => ({
+          ...prev,
+          name: u.nameEnglish || u.name || prev.name,
+          id: u.nationalId || prev.id,
+          avatar: u.photoUrl || prev.avatar,
+          status: u.status === 'active' ? "Digitally Verified" : "Pending Verification",
+          email: u.email || prev.email,
+          phone: u.phoneNumber || prev.phone,
+          address: u.address || prev.address
+        }));
+      }
+    } catch (e) {
+      console.error("Failed to fetch profile", e);
+    } finally {
+      setLoading(false);
+    }
   };
+
+  useEffect(() => {
+    fetchUserProfile();
+  }, []);
 
   const handleServiceClick = (serviceName: string) => {
     Alert.alert("Service", `Connecting to ${serviceName}...`);
@@ -58,7 +95,7 @@ export default function DashboardScreen({ onScanPress, onLogout, onEditProfile, 
   return (
     <View style={styles.container}>
       <StatusBar barStyle="dark-content" backgroundColor="#F8FAFC" />
-      
+
       {/* 1. TOP HEADER */}
       <SafeAreaView style={styles.safeArea}>
         <View style={styles.header}>
@@ -76,7 +113,7 @@ export default function DashboardScreen({ onScanPress, onLogout, onEditProfile, 
       </SafeAreaView>
 
       <ScrollView contentContainerStyle={styles.scrollContent} showsVerticalScrollIndicator={false}>
-        
+
         {/* 2. IDENTITY CARD */}
         <LinearGradient
           colors={['#2563EB', '#1d4ed8']}
@@ -109,7 +146,7 @@ export default function DashboardScreen({ onScanPress, onLogout, onEditProfile, 
                 <Text style={styles.statusValue}>{profile.status}</Text>
               </View>
             </View>
-            <View style={{alignItems: 'flex-end'}}>
+            <View style={{ alignItems: 'flex-end' }}>
               <Text style={styles.footerLabel}>VALID UNTIL</Text>
               <Text style={styles.dateValue}>{profile.validUntil}</Text>
             </View>
@@ -119,21 +156,21 @@ export default function DashboardScreen({ onScanPress, onLogout, onEditProfile, 
         {/* 3. QUICK ACTIONS */}
         <View style={styles.quickActions}>
           <TouchableOpacity style={styles.actionBtn} onPress={() => Alert.alert("History", "No logs yet")}>
-            <View style={[styles.actionIconCircle, {backgroundColor: '#eff6ff'}]}>
+            <View style={[styles.actionIconCircle, { backgroundColor: '#eff6ff' }]}>
               <MaterialCommunityIcons name="history" size={24} color="#2563EB" />
             </View>
             <Text style={styles.actionLabel}>History</Text>
           </TouchableOpacity>
 
           <TouchableOpacity style={styles.actionBtn} onPress={() => Alert.alert("Documents", "No documents")}>
-            <View style={[styles.actionIconCircle, {backgroundColor: '#eff6ff'}]}>
+            <View style={[styles.actionIconCircle, { backgroundColor: '#eff6ff' }]}>
               <Ionicons name="document-text-outline" size={24} color="#2563EB" />
             </View>
             <Text style={styles.actionLabel}>Documents</Text>
           </TouchableOpacity>
 
           <TouchableOpacity style={styles.actionBtn} onPress={onSettings}>
-            <View style={[styles.actionIconCircle, {backgroundColor: '#eff6ff'}]}>
+            <View style={[styles.actionIconCircle, { backgroundColor: '#eff6ff' }]}>
               <Ionicons name="settings-outline" size={24} color="#2563EB" />
             </View>
             <Text style={styles.actionLabel}>Settings</Text>
@@ -161,25 +198,25 @@ export default function DashboardScreen({ onScanPress, onLogout, onEditProfile, 
               </TouchableOpacity>
             );
           })}
-          
+
           {/* Add Service Button */}
           <TouchableOpacity style={[styles.serviceCard, { borderStyle: 'dashed', borderWidth: 1, borderColor: '#cbd5e1', backgroundColor: 'transparent' }]}>
             <View style={[styles.serviceIconBox, { backgroundColor: '#f1f5f9' }]}>
               <Ionicons name="add" size={28} color="#64748b" />
             </View>
-            <Text style={[styles.serviceTitle, {color: '#64748b'}]}>Add Service</Text>
+            <Text style={[styles.serviceTitle, { color: '#64748b' }]}>Add Service</Text>
             <Text style={styles.serviceSub}>Connect new</Text>
           </TouchableOpacity>
         </View>
 
-        <View style={{height: 100}} />
+        <View style={{ height: 100 }} />
       </ScrollView>
 
       {/* 5. BOTTOM NAVIGATION */}
       <View style={styles.bottomNav}>
         <TouchableOpacity style={styles.navItem}>
           <Ionicons name="home" size={24} color="#2563EB" />
-          <Text style={[styles.navLabel, {color: '#2563EB'}]}>Home</Text>
+          <Text style={[styles.navLabel, { color: '#2563EB' }]}>Home</Text>
         </TouchableOpacity>
         <TouchableOpacity style={styles.navItem}>
           <Ionicons name="folder-outline" size={24} color="#94a3b8" />

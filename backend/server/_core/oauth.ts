@@ -10,6 +10,52 @@ function getQueryParam(req: Request, key: string): string | undefined {
 }
 
 export function registerOAuthRoutes(app: Express) {
+  app.post("/api/oauth/google-mobile", async (req: Request, res: Response) => {
+    const { code, redirectUri } = req.body;
+
+    if (!code) {
+      res.status(400).json({ error: "code is required" });
+      return;
+    }
+
+    try {
+      // For mobile, the state often encodes the redirectUri in the web flow, 
+      // but here we pass it explicitly or construct a state string that the SDK expects if necessary.
+      // The SDK's exchangeCodeForToken expects (code, state).
+      // And SDK.getTokenByCode decodes state to get redirectUri: const redirectUri = atob(state);
+      // So we need to fake the state by base64 encoding the redirectUri.
+
+      const fakeState = btoa(redirectUri || "");
+
+      const tokenResponse = await sdk.exchangeCodeForToken(code, fakeState);
+      const userInfo = await sdk.getUserInfo(tokenResponse.accessToken);
+
+      if (!userInfo.openId) {
+        res.status(400).json({ error: "openId missing from user info" });
+        return;
+      }
+
+      await db.upsertUser({
+        openId: userInfo.openId,
+        name: userInfo.name || null,
+        email: userInfo.email ?? null,
+        loginMethod: userInfo.loginMethod ?? userInfo.platform ?? null,
+        lastSignedIn: new Date(),
+      });
+
+      const sessionToken = await sdk.createSessionToken(userInfo.openId, {
+        name: userInfo.name || "",
+        expiresInMs: ONE_YEAR_MS,
+      });
+
+      // Return JSON instead of redirect/cookie
+      res.json({ success: true, token: sessionToken, user: userInfo });
+    } catch (error) {
+      console.error("[OAuth] Mobile Exchange failed", error);
+      res.status(500).json({ error: "OAuth exchange failed" });
+    }
+  });
+
   app.get("/api/oauth/callback", async (req: Request, res: Response) => {
     const code = getQueryParam(req, "code");
     const state = getQueryParam(req, "state");

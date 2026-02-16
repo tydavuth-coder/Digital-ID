@@ -1,9 +1,15 @@
 import React, { useState } from 'react';
-import { 
-  StyleSheet, Text, View, TouchableOpacity, SafeAreaView, 
-  StatusBar, Dimensions, Platform 
+import {
+  StyleSheet, Text, View, TouchableOpacity, SafeAreaView,
+  StatusBar, Dimensions, Platform, Alert
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
+import * as WebBrowser from 'expo-web-browser';
+import * as Google from 'expo-auth-session/providers/google';
+import { makeRedirectUri } from 'expo-auth-session';
+import { api } from './src/api/client';
+
+WebBrowser.maybeCompleteAuthSession();
 
 // Import Screens
 import SyncScreen from './src/screens/SyncScreen';
@@ -16,16 +22,63 @@ import SettingsScreen from './src/screens/SettingsScreen';
 export default function App() {
   const [currentScreen, setCurrentScreen] = useState<'welcome' | 'register' | 'recovery' | 'dashboard' | 'scan' | 'edit_profile' | 'settings'>('welcome');
   const [previousScreen, setPreviousScreen] = useState<'welcome' | 'dashboard'>('welcome');
-  
+
   // State សម្រាប់ទិន្នន័យអ្នកប្រើប្រាស់
   const [userProfile, setUserProfile] = useState<any>(null);
+
+  // --- GOOGLE AUTH CONFIG ---
+  // Placeholder Client IDs - Use Google Cloud Console to generate real ones
+  const [request, response, promptAsync] = Google.useAuthRequest({
+    // androidClientId: "YOUR_ANDROID_CLIENT_ID",
+    // iosClientId: "YOUR_IOS_CLIENT_ID",
+    // webClientId: "YOUR_WEB_CLIENT_ID",
+    redirectUri: makeRedirectUri({
+      scheme: 'digitalid'
+    }),
+  });
+
+  React.useEffect(() => {
+    if (response?.type === 'success') {
+      const { code } = response.params;
+      handleGoogleLogin(code);
+    } else if (response?.type === 'error') {
+      Alert.alert("Login Failed", "Google login could not complete.");
+    }
+  }, [response]);
+
+  const handleGoogleLogin = async (code: string) => {
+    try {
+      console.log("Google Auth Code:", code);
+      const redirectUri = makeRedirectUri({ scheme: 'digitalid' });
+
+      const res = await api.post('/oauth/google-mobile', {
+        code,
+        redirectUri
+      });
+
+      if (res.data && (res.data.success || res.data.token)) {
+        console.log("Login Success:", res.data.user);
+        setUserProfile({
+          ...res.data.user,
+          nameEn: res.data.user.name,
+          avatar: res.data.user.picture,
+        });
+        setCurrentScreen('dashboard');
+      } else {
+        Alert.alert("Login Failed", "Server refused login.");
+      }
+    } catch (e: any) {
+      console.error("Backend Exchange Failed:", e);
+      Alert.alert("Login Error", "Failed to connect to server: " + (e.message || "Unknown error"));
+    }
+  };
 
   // --- NAVIGATION FUNCTIONS ---
   const goBackToWelcome = () => setCurrentScreen('welcome');
   const goToDashboard = () => setCurrentScreen('dashboard');
   const goToScan = () => setCurrentScreen('scan');
   const goToEditProfile = () => setCurrentScreen('edit_profile');
-  
+
   const goToSettings = (from: 'welcome' | 'dashboard') => {
     setPreviousScreen(from);
     setCurrentScreen('settings');
@@ -34,7 +87,7 @@ export default function App() {
   // Callback ពេល Register ជោគជ័យ
   const handleRegisterFinish = (data: any) => {
     if (data) {
-        setUserProfile(data); // រក្សាទុកទិន្នន័យដែលបានពី Register
+      setUserProfile(data); // រក្សាទុកទិន្នន័យដែលបានពី Register
     }
     setCurrentScreen('dashboard');
   };
@@ -59,7 +112,7 @@ export default function App() {
 
   if (currentScreen === 'dashboard') {
     return (
-      <DashboardScreen 
+      <DashboardScreen
         userData={userProfile} // ✅ បញ្ជូនទិន្នន័យទៅ Dashboard
         onScanPress={goToScan}
         onLogout={goBackToWelcome}
@@ -71,9 +124,9 @@ export default function App() {
 
   if (currentScreen === 'settings') {
     return (
-      <SettingsScreen 
-        onBack={() => setCurrentScreen(previousScreen)} 
-        isAuthenticated={previousScreen === 'dashboard'} 
+      <SettingsScreen
+        onBack={() => setCurrentScreen(previousScreen)}
+        isAuthenticated={previousScreen === 'dashboard'}
       />
     );
   }
@@ -98,7 +151,7 @@ export default function App() {
   return (
     <SafeAreaView style={styles.container}>
       <StatusBar barStyle="light-content" backgroundColor="#1d4ed8" />
-      
+
       <View style={styles.content}>
         <View style={styles.brandSection}>
           <View style={styles.logoContainer}>
@@ -113,6 +166,16 @@ export default function App() {
         </View>
 
         <View style={styles.buttonSection}>
+          <TouchableOpacity
+            style={[styles.mainButton, !request && { opacity: 0.7 }]}
+            activeOpacity={0.9}
+            disabled={!request}
+            onPress={() => {
+              promptAsync();
+            }}>
+            <Text style={styles.buttonText}>Login with Google</Text>
+          </TouchableOpacity>
+
           <TouchableOpacity style={styles.mainButton} activeOpacity={0.9} onPress={() => setCurrentScreen('register')}>
             <Text style={styles.buttonText}>Register</Text>
           </TouchableOpacity>

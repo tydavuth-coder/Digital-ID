@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
-import { 
-  StyleSheet, Text, View, TouchableOpacity, SafeAreaView, 
-  TextInput, Image, ScrollView, Platform, Alert, ActivityIndicator, KeyboardAvoidingView 
+import {
+  StyleSheet, Text, View, TouchableOpacity, SafeAreaView,
+  TextInput, Image, ScrollView, Platform, Alert, ActivityIndicator, KeyboardAvoidingView
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import * as ImagePicker from 'expo-image-picker';
@@ -10,18 +10,48 @@ interface EditProfileProps {
   onBack: () => void;
 }
 
+import { api } from '../api/client';
+
 export default function EditProfileScreen({ onBack }: EditProfileProps) {
   const [loading, setLoading] = useState(false);
-  
+  const [initialLoading, setInitialLoading] = useState(true);
+
   // Profile State
   const [profile, setProfile] = useState({
-    name: "Sophea Chan",
-    id: "123-456-789",
-    phone: "12 345 678",
-    email: "sophea.chan@email.com",
-    address: "#123, Preah Monivong Blvd, Phnom Penh, Cambodia",
+    name: "",
+    id: "",
+    phone: "",
+    email: "",
+    address: "",
     avatar: "https://i.pravatar.cc/150?img=5"
   });
+
+  // Fetch Data on Mount
+  React.useEffect(() => {
+    const fetchProfile = async () => {
+      try {
+        // Using TRPC info or just assuming we have it local? 
+        // Better to fetch fresh.
+        const res = await api.get('/trpc/auth.me');
+        if (res.data?.result?.data) {
+          const u = res.data.result.data;
+          setProfile({
+            name: u.nameEnglish || u.name || "",
+            id: u.nationalId || "",
+            phone: u.phoneNumber || "",
+            email: u.email || "",
+            address: u.address || "",
+            avatar: u.photoUrl || "https://i.pravatar.cc/150?img=5"
+          });
+        }
+      } catch (e) {
+        console.log("Error fetching profile", e);
+      } finally {
+        setInitialLoading(false);
+      }
+    };
+    fetchProfile();
+  }, []);
 
   // Pick Image Function
   const pickImage = async () => {
@@ -29,45 +59,75 @@ export default function EditProfileScreen({ onBack }: EditProfileProps) {
       mediaTypes: ImagePicker.MediaTypeOptions.Images,
       allowsEditing: true,
       aspect: [1, 1],
-      quality: 1,
+      quality: 0.5,
+      base64: true
     });
 
-    if (!result.canceled) {
-      setProfile({ ...profile, avatar: result.assets[0].uri });
+    if (!result.canceled && result.assets && result.assets.length > 0) {
+      const asset = result.assets[0];
+      // If we have base64, construct data URI
+      const imageUri = asset.base64
+        ? `data:image/jpeg;base64,${asset.base64}`
+        : asset.uri;
+
+      setProfile({ ...profile, avatar: imageUri });
     }
   };
 
   // Handle Save
-  const handleSave = () => {
+  const handleSave = async () => {
     setLoading(true);
-    // Simulate API call
-    setTimeout(() => {
+    try {
+      const res = await api.post('/profile/update', {
+        nameEn: profile.name,
+        phone: profile.phone,
+        email: profile.email,
+        address: profile.address,
+        photoUrl: profile.avatar // Sending base64 if changed, or URL if not
+      });
+
+      if (res.data.success) {
+        Alert.alert("Success", "Profile updated successfully!", [
+          { text: "OK", onPress: onBack }
+        ]);
+      } else {
+        Alert.alert("Error", "Failed to update profile.");
+      }
+    } catch (e) {
+      console.error("Update failed", e);
+      Alert.alert("Error", "Failed to connect to server.");
+    } finally {
       setLoading(false);
-      Alert.alert("Success", "Profile updated successfully!", [
-        { text: "OK", onPress: onBack }
-      ]);
-    }, 1500);
+    }
   };
+
+  if (initialLoading) {
+    return (
+      <View style={[styles.container, { justifyContent: 'center', alignItems: 'center' }]}>
+        <ActivityIndicator size="large" color="#2563EB" />
+      </View>
+    );
+  }
 
   return (
     <View style={styles.container}>
       <SafeAreaView style={styles.safeArea}>
-        
+
         {/* 1. Header (Blue Background like Reference) */}
         <View style={styles.header}>
           <TouchableOpacity onPress={onBack} style={styles.backBtn}>
             <Ionicons name="arrow-back" size={24} color="#1E293B" />
           </TouchableOpacity>
           <Text style={styles.headerTitle}>Edit Profile</Text>
-          <View style={{width: 40}} /> 
+          <View style={{ width: 40 }} />
         </View>
 
-        <KeyboardAvoidingView 
+        <KeyboardAvoidingView
           behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
           style={{ flex: 1 }}
         >
           <ScrollView contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>
-            
+
             {/* 2. Avatar Section */}
             <View style={styles.avatarSection}>
               <TouchableOpacity onPress={pickImage} activeOpacity={0.8}>
@@ -85,14 +145,14 @@ export default function EditProfileScreen({ onBack }: EditProfileProps) {
 
             {/* 3. Form Fields */}
             <View style={styles.form}>
-              
+
               {/* Name */}
               <View style={styles.inputGroup}>
                 <Text style={styles.label}>Full Name</Text>
-                <TextInput 
-                  style={styles.input} 
+                <TextInput
+                  style={styles.input}
                   value={profile.name}
-                  onChangeText={(text) => setProfile({...profile, name: text})}
+                  onChangeText={(text) => setProfile({ ...profile, name: text })}
                   placeholder="Enter full name"
                   placeholderTextColor="#94A3B8"
                 />
@@ -101,8 +161,8 @@ export default function EditProfileScreen({ onBack }: EditProfileProps) {
               {/* National ID (Disabled) */}
               <View style={styles.inputGroup}>
                 <Text style={styles.label}>National ID</Text>
-                <TextInput 
-                  style={[styles.input, styles.inputDisabled]} 
+                <TextInput
+                  style={[styles.input, styles.inputDisabled]}
                   value={profile.id}
                   editable={false}
                 />
@@ -114,16 +174,16 @@ export default function EditProfileScreen({ onBack }: EditProfileProps) {
                 <Text style={styles.label}>Phone Number</Text>
                 <View style={styles.phoneContainer}>
                   <View style={styles.countryCode}>
-                    <Image 
-                      source={{ uri: 'https://flagcdn.com/w40/kh.png' }} 
-                      style={{ width: 24, height: 16, borderRadius: 2 }} 
+                    <Image
+                      source={{ uri: 'https://flagcdn.com/w40/kh.png' }}
+                      style={{ width: 24, height: 16, borderRadius: 2 }}
                     />
                     <Text style={styles.codeText}>+855</Text>
                   </View>
-                  <TextInput 
-                    style={styles.phoneInput} 
+                  <TextInput
+                    style={styles.phoneInput}
                     value={profile.phone}
-                    onChangeText={(text) => setProfile({...profile, phone: text})}
+                    onChangeText={(text) => setProfile({ ...profile, phone: text })}
                     keyboardType="phone-pad"
                     placeholderTextColor="#94A3B8"
                   />
@@ -133,10 +193,10 @@ export default function EditProfileScreen({ onBack }: EditProfileProps) {
               {/* Email */}
               <View style={styles.inputGroup}>
                 <Text style={styles.label}>Email Address</Text>
-                <TextInput 
-                  style={styles.input} 
+                <TextInput
+                  style={styles.input}
                   value={profile.email}
-                  onChangeText={(text) => setProfile({...profile, email: text})}
+                  onChangeText={(text) => setProfile({ ...profile, email: text })}
                   keyboardType="email-address"
                   placeholder="name@example.com"
                   placeholderTextColor="#94A3B8"
@@ -149,8 +209,8 @@ export default function EditProfileScreen({ onBack }: EditProfileProps) {
 
         {/* 4. Footer Button (Blue & Fixed) */}
         <View style={styles.footer}>
-          <TouchableOpacity 
-            style={styles.saveBtn} 
+          <TouchableOpacity
+            style={styles.saveBtn}
             onPress={handleSave}
             disabled={loading}
           >
@@ -173,7 +233,7 @@ export default function EditProfileScreen({ onBack }: EditProfileProps) {
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: '#FFFFFF' }, // Pure White Background
   safeArea: { flex: 1, paddingTop: Platform.OS === 'android' ? 40 : 0 },
-  
+
   // Header
   header: {
     flexDirection: 'row',
@@ -185,9 +245,9 @@ const styles = StyleSheet.create({
     borderBottomColor: '#F1F5F9',
     backgroundColor: '#fff',
   },
-  backBtn: { 
-    width: 40, height: 40, borderRadius: 20, 
-    backgroundColor: '#F8FAFC', justifyContent: 'center', alignItems: 'center' 
+  backBtn: {
+    width: 40, height: 40, borderRadius: 20,
+    backgroundColor: '#F8FAFC', justifyContent: 'center', alignItems: 'center'
   },
   headerTitle: { fontSize: 18, fontWeight: '700', color: '#0F172A' },
 
@@ -197,9 +257,9 @@ const styles = StyleSheet.create({
   // Avatar
   avatarSection: { alignItems: 'center', marginBottom: 30 },
   avatarContainer: { position: 'relative', marginBottom: 12 },
-  avatar: { 
-    width: 100, height: 100, borderRadius: 50, 
-    backgroundColor: '#E2E8F0' 
+  avatar: {
+    width: 100, height: 100, borderRadius: 50,
+    backgroundColor: '#E2E8F0'
   },
   cameraBadge: {
     position: 'absolute',
@@ -210,8 +270,8 @@ const styles = StyleSheet.create({
     justifyContent: 'center', alignItems: 'center',
     borderWidth: 3, borderColor: '#fff'
   },
-  changePhotoText: { 
-    color: '#2563EB', fontWeight: '600', fontSize: 14 
+  changePhotoText: {
+    color: '#2563EB', fontWeight: '600', fontSize: 14
   },
 
   // Form
@@ -269,12 +329,12 @@ const styles = StyleSheet.create({
     height: 56,
     borderRadius: 16,
     justifyContent: 'center', alignItems: 'center',
-    shadowColor: '#2563EB', shadowOpacity: 0.25, shadowRadius: 8, shadowOffset: {width: 0, height: 4},
+    shadowColor: '#2563EB', shadowOpacity: 0.25, shadowRadius: 8, shadowOffset: { width: 0, height: 4 },
     elevation: 4
   },
   btnContent: {
-    flexDirection: 'row', 
-    alignItems: 'center', 
+    flexDirection: 'row',
+    alignItems: 'center',
     justifyContent: 'center',
     gap: 8 // ប្រសិនបើ gap មិនដើរលើ Android ចាស់ៗ ខ្ញុំអាចប្តូរដាក់ Margin
   },

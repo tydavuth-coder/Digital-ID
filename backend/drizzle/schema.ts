@@ -11,7 +11,7 @@ export const users = mysqlTable("users", {
   email: varchar("email", { length: 320 }),
   loginMethod: varchar("loginMethod", { length: 64 }),
   role: mysqlEnum("role", ["user", "admin", "kyc_reviewer", "system_admin", "super_admin"]).default("user").notNull(),
-  
+
   // Digital ID specific fields
   nameKhmer: text("nameKhmer"),
   nameEnglish: text("nameEnglish"),
@@ -23,17 +23,18 @@ export const users = mysqlTable("users", {
   photoUrl: text("photoUrl"),
   status: mysqlEnum("status", ["active", "pending", "blocked"]).default("pending").notNull(),
   kycStatus: mysqlEnum("kycStatus", ["pending", "approved", "rejected"]).default("pending").notNull(),
-  
+
   // Security fields
   pin: varchar("pin", { length: 255 }),
   biometricEnabled: boolean("biometricEnabled").default(false),
   twoFactorEnabled: boolean("twoFactorEnabled").default(false),
   telegramChatId: varchar("telegramChatId", { length: 64 }),
-  
+  recoveryToken: varchar("recoveryToken", { length: 255 }),
+
   // Digital ID verification
   digitalIdVerified: boolean("digitalIdVerified").default(false),
   idExpiryDate: timestamp("idExpiryDate"),
-  
+
   createdAt: timestamp("createdAt").defaultNow().notNull(),
   updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
   lastSignedIn: timestamp("lastSignedIn").defaultNow().notNull(),
@@ -45,18 +46,18 @@ export const users = mysqlTable("users", {
 export const kycDocuments = mysqlTable("kycDocuments", {
   id: int("id").autoincrement().primaryKey(),
   userId: int("userId").notNull(),
-  
+
   // Document URLs stored in S3
   nidFrontUrl: text("nidFrontUrl").notNull(),
   nidBackUrl: text("nidBackUrl").notNull(),
   selfieUrl: text("selfieUrl").notNull(),
-  
+
   // Verification details
   verificationStatus: mysqlEnum("verificationStatus", ["pending", "approved", "rejected"]).default("pending").notNull(),
   verifiedBy: int("verifiedBy"), // Admin user ID who verified
   verifiedAt: timestamp("verifiedAt"),
   rejectionReason: text("rejectionReason"),
-  
+
   createdAt: timestamp("createdAt").defaultNow().notNull(),
   updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
 });
@@ -71,15 +72,15 @@ export const services = mysqlTable("services", {
   nameEnglish: text("nameEnglish"),
   description: text("description"),
   logoUrl: text("logoUrl"),
-  
+
   // API credentials
   token: varchar("token", { length: 255 }).notNull().unique(),
   secret: varchar("secret", { length: 255 }).notNull(),
-  
+
   // Service configuration
   callbackUrl: text("callbackUrl"),
   isActive: boolean("isActive").default(true).notNull(),
-  
+
   createdAt: timestamp("createdAt").defaultNow().notNull(),
   updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
 });
@@ -91,7 +92,7 @@ export const userServices = mysqlTable("userServices", {
   id: int("id").autoincrement().primaryKey(),
   userId: int("userId").notNull(),
   serviceId: int("serviceId").notNull(),
-  
+
   connectedAt: timestamp("connectedAt").defaultNow().notNull(),
   lastUsedAt: timestamp("lastUsedAt"),
 });
@@ -103,17 +104,17 @@ export const activityLogs = mysqlTable("activityLogs", {
   id: int("id").autoincrement().primaryKey(),
   userId: int("userId"),
   username: varchar("username", { length: 64 }),
-  
+
   // Activity details
   action: varchar("action", { length: 255 }).notNull(),
   actionType: mysqlEnum("actionType", ["login", "logout", "kyc_submit", "kyc_approve", "kyc_reject", "service_connect", "service_disconnect", "qr_scan", "profile_update", "admin_action", "other"]).notNull(),
   description: text("description"),
-  
+
   // Metadata
   ipAddress: varchar("ipAddress", { length: 45 }),
   userAgent: text("userAgent"),
   metadata: text("metadata"), // JSON string for additional data
-  
+
   createdAt: timestamp("createdAt").defaultNow().notNull(),
 });
 
@@ -122,21 +123,21 @@ export const activityLogs = mysqlTable("activityLogs", {
  */
 export const systemSettings = mysqlTable("systemSettings", {
   id: int("id").autoincrement().primaryKey(),
-  
+
   // General settings
   maintenanceMode: boolean("maintenanceMode").default(false).notNull(),
   allowKycUserCreation: boolean("allowKycUserCreation").default(true).notNull(),
-  
+
   // Telegram OTP configuration
   telegramBotToken: text("telegramBotToken"),
   telegramBotId: varchar("telegramBotId", { length: 64 }),
-  
+
   // SMS OTP configuration
   smsProvider: varchar("smsProvider", { length: 64 }),
   smsApiKey: text("smsApiKey"),
   smsApiSecret: text("smsApiSecret"),
   smsSenderId: varchar("smsSenderId", { length: 64 }),
-  
+
   // SMTP Email configuration
   smtpHost: varchar("smtpHost", { length: 255 }),
   smtpPort: int("smtpPort").default(587),
@@ -146,7 +147,7 @@ export const systemSettings = mysqlTable("systemSettings", {
   smtpFromEmail: varchar("smtpFromEmail", { length: 320 }),
   smtpFromName: varchar("smtpFromName", { length: 255 }),
   smtpEnabled: boolean("smtpEnabled").default(false),
-  
+
   updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
   updatedBy: int("updatedBy"), // Admin user ID who updated
 });
@@ -157,11 +158,11 @@ export const systemSettings = mysqlTable("systemSettings", {
 export const activeSessions = mysqlTable("activeSessions", {
   id: int("id").autoincrement().primaryKey(),
   userId: int("userId").notNull(),
-  
+
   sessionToken: varchar("sessionToken", { length: 255 }).notNull().unique(),
   deviceInfo: text("deviceInfo"),
   ipAddress: varchar("ipAddress", { length: 45 }),
-  
+
   expiresAt: timestamp("expiresAt").notNull(),
   createdAt: timestamp("createdAt").defaultNow().notNull(),
   lastActivityAt: timestamp("lastActivityAt").defaultNow().notNull(),
@@ -173,17 +174,17 @@ export const activeSessions = mysqlTable("activeSessions", {
 export const notifications = mysqlTable("notifications", {
   id: int("id").autoincrement().primaryKey(),
   userId: int("userId").notNull(),
-  
+
   title: text("title").notNull(),
   titleKhmer: text("titleKhmer"),
   titleEnglish: text("titleEnglish"),
   message: text("message").notNull(),
   messageKhmer: text("messageKhmer"),
   messageEnglish: text("messageEnglish"),
-  
+
   type: mysqlEnum("type", ["info", "success", "warning", "error"]).default("info").notNull(),
   isRead: boolean("isRead").default(false).notNull(),
-  
+
   createdAt: timestamp("createdAt").defaultNow().notNull(),
 });
 
@@ -194,10 +195,10 @@ export const qrAuthTokens = mysqlTable("qrAuthTokens", {
   id: int("id").autoincrement().primaryKey(),
   userId: int("userId").notNull(),
   serviceId: int("serviceId").notNull(),
-  
+
   token: varchar("token", { length: 255 }).notNull().unique(),
   isUsed: boolean("isUsed").default(false).notNull(),
-  
+
   expiresAt: timestamp("expiresAt").notNull(),
   createdAt: timestamp("createdAt").defaultNow().notNull(),
   usedAt: timestamp("usedAt"),
@@ -208,26 +209,26 @@ export const qrAuthTokens = mysqlTable("qrAuthTokens", {
  */
 export const reportSchedules = mysqlTable("reportSchedules", {
   id: int("id").autoincrement().primaryKey(),
-  
+
   name: varchar("name", { length: 255 }).notNull(),
   reportType: mysqlEnum("reportType", ["monthly", "quarterly", "weekly", "custom"]).notNull(),
-  
+
   // Schedule configuration
   frequency: mysqlEnum("frequency", ["daily", "weekly", "monthly", "quarterly"]).notNull(),
   dayOfWeek: int("dayOfWeek"), // 0-6 for weekly
   dayOfMonth: int("dayOfMonth"), // 1-31 for monthly
   timeOfDay: varchar("timeOfDay", { length: 5 }).default("09:00"), // HH:MM format
-  
+
   // Recipients
   recipientEmails: text("recipientEmails").notNull(), // JSON array of emails
-  
+
   // Status
   isEnabled: boolean("isEnabled").default(true).notNull(),
   lastRunAt: timestamp("lastRunAt"),
   nextRunAt: timestamp("nextRunAt"),
   lastStatus: mysqlEnum("lastStatus", ["success", "failed", "pending"]).default("pending"),
   lastError: text("lastError"),
-  
+
   createdBy: int("createdBy").notNull(),
   createdAt: timestamp("createdAt").defaultNow().notNull(),
   updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),

@@ -79,3 +79,10 @@ export async function recoveryResetPin(recoveryToken: string, newPin: string) {
   if (!accessToken || !refreshToken) throw new Error("Missing tokens from backend");
   await saveTokens(accessToken, refreshToken);
 }
+
+/** QR AUTH: Mobile scans QR (socketId) -> Backend -> Web Login */
+export async function authorizeDashboardSession(qrToken: string) {
+  const res = await api.post("/auth/qr/authorize", { qrToken });
+  if (!res.data.success) throw new Error("Failed to authorize session");
+}
+

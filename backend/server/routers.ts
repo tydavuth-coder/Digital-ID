@@ -93,6 +93,27 @@ export const appRouter = router({
       return { success: true } as const;
     }),
 
+    // ✅ UPDATE PROFILE
+    updateProfile: protectedProcedure.input(z.object({
+      nameEn: z.string().optional(),
+      nameKh: z.string().optional(),
+      phone: z.string().optional(),
+      email: z.string().email().optional(),
+      address: z.string().optional(),
+      photoUrl: z.string().optional(),
+    })).mutation(async ({ input, ctx }) => {
+      const updatedUser = await db.updateUser(ctx.user.id, {
+        nameEnglish: input.nameEn,
+        nameKhmer: input.nameKh,
+        phoneNumber: input.phone,
+        email: input.email,
+        address: input.address,
+        photoUrl: input.photoUrl
+      });
+
+      return { success: true, user: updatedUser };
+    }),
+
     // ✅ PUBLIC KYC SUBMISSION (Accessible without login)
     submitKYC: publicProcedure.input(z.object({
       phoneNumber: z.string().optional(), // ✅ Add Phone Number
