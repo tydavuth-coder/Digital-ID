@@ -112,13 +112,15 @@ function extractDataFromText(text: string) {
 
     // 5. Place of Birth (POB)
     if (!extracted.pob && (line.includes("ទីកន្លែងកំណើត") || line.toUpperCase().includes("PLACE OF BIRTH"))) {
-      extracted.pob = line.replace(/.*(ទីកន្លែងកំណើត|PLACE OF BIRTH)\s*(:|-|)?\s*/i, '').trim();
+      // Added \u17C6 (ៈ) to stripped characters
+      extracted.pob = line.replace(/.*(ទីកន្លែងកំណើត|PLACE OF BIRTH)\s*(:|-|\u17C6)?\s*/i, '').trim();
       console.log("   -> Found POB:", extracted.pob);
     }
 
     // 6. Address
     if (!extracted.address && (line.includes("អាសយដ្ឋាន") || line.toUpperCase().includes("ADDRESS"))) {
-      extracted.address = line.replace(/.*(អាសយដ្ឋាន|ADDRESS)\s*(:|-|)?\s*/i, '').trim();
+      // Added \u17C6 (ៈ) to stripped characters
+      extracted.address = line.replace(/.*(អាសយដ្ឋាន|ADDRESS)\s*(:|-|\u17C6)?\s*/i, '').trim();
       console.log("   -> Found Address:", extracted.address);
     }
   }
