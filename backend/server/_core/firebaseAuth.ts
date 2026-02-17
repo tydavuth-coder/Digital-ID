@@ -46,8 +46,6 @@ export function registerFirebaseAuthRoutes(app: Express) {
       });
 
       res.json({ success: true });
-    } catch (e) {
-      console.error("[FirebaseAuth] session failed:", e);
     } catch (e: any) {
       console.error("[FirebaseAuth] session failed:", e);
       // Return specific error for debugging

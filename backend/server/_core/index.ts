@@ -14,6 +14,37 @@ import { createContext } from "./context";
 import { serveStatic, setupVite } from "./vite";
 import { initializeWebSocket } from "../websocket";
 
+import { getFirebaseAdmin } from "./firebaseAdmin";
+import fs from "fs";
+import path from "path";
+
+// DIAGNOSTIC LOGGING
+console.log("\n\n==================================================");
+console.log("🚀 STARTING DIGITAL ID ADMIN SERVER - v2.0 (DEBUG)");
+console.log("==================================================");
+console.log("Checking environment...");
+const saPath = path.join(process.cwd(), "service-account.json");
+if (fs.existsSync(saPath)) {
+  console.log("✅ [Check] service-account.json FOUND at:", saPath);
+  try {
+    const sa = JSON.parse(fs.readFileSync(saPath, 'utf-8'));
+    console.log("   -> Project ID in file:", sa.project_id);
+  } catch (e) {
+    console.log("   -> ❌ Error reading JSON:", e);
+  }
+} else {
+  console.log("❌ [Check] service-account.json NOT FOUND at:", saPath);
+}
+console.log("==================================================\n");
+
+// Initialize Firebase Admin immediately to test
+try {
+  getFirebaseAdmin();
+  console.log("✅ [Check] Firebase Admin Initialized");
+} catch (error) {
+  console.error("❌ [Check] Firebase Admin Failed:", error);
+}
+
 function isPortAvailable(port: number): Promise<boolean> {
   return new Promise(resolve => {
     const server = net.createServer();
