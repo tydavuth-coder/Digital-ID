@@ -1,0 +1,500 @@
+﻿--------- beginning of main
+02-17 15:02:12.558  4778  4778 I appproc : app_process main with argv: /system/bin com.android.commands.monkey.Monkey -p org.efimef.digitalid -c android.intent.category.LAUNCHER 1 
+02-17 15:02:12.558  4778  4778 D AndroidRuntime: >>>>>> START com.android.internal.os.RuntimeInit uid 2000 <<<<<<
+02-17 15:02:12.567  4778  4778 E cutils-trace: Error opening trace file: No such file or directory (2)
+02-17 15:02:12.621  4778  4778 V libnb   : enter native_bridge2_isCompatibleWith 3
+02-17 15:02:12.631  4778  4778 I libnb   : Found /system/lib64/libhoudini.so version 3
+02-17 15:02:12.723  4778  4778 I main    : type=1400 audit(0.0:679): avc: denied { mounton } for path="/proc/cpuinfo" dev="proc" ino=4026531993 scontext=u:r:shell:s0 tcontext=u:object_r:proc_cpuinfo:s0 tclass=file permissive=1
+02-17 15:02:12.723  4778  4778 W main    : type=1300 audit(0.0:679): arch=c000003e syscall=165 success=no exit=-1 a0=7fffffffbbb0 a1=7ffff48e6d3b a2=0 a3=1000 items=0 ppid=2306 auid=4294967295 uid=2000 gid=2000 euid=2000 suid=2000 fsuid=2000 egid=2000 sgid=2000 fsgid=2000 tty=(none) ses=4294967295 exe="/system/bin/app_process64" subj=u:r:shell:s0 key=(null)
+02-17 15:02:12.723  1364  1364 W auditd  : type=1327 audit(0.0:679): proctitle=6170705F70726F63657373002F73797374656D2F62696E00636F6D2E616E64726F69642E636F6D6D616E64732E6D6F6E6B65792E4D6F6E6B6579002D70006F72672E6566696D65662E6469676974616C6964002D6300616E64726F69642E696E74656E742E63617465676F72792E4C41554E434845520031
+02-17 15:02:12.723  1364  1364 W auditd  : type=1320 audit(0.0:679): 
+02-17 15:02:12.725  4778  4778 I app_process: The ClassLoaderContext is a special shared library.
+02-17 15:02:12.726  4778  4778 W app_process: Could not create mount namespace.
+02-17 15:02:12.726  4778  4778 D nativebridge: PreInitializeNativeBridge name=unknown instruction_set=x86_64
+02-17 15:02:12.726  4778  4778 W nativebridge: Failed to bind-mount /system/lib64/x86_64/cpuinfo as /proc/cpuinfo: Operation not permitted
+02-17 15:02:12.726  4778  4778 D nativebridge: call UnloadNativeBridge! state=2
+02-17 15:02:12.820  4778  4778 I commands.monkey: type=1400 audit(0.0:680): avc: denied { open } for path="/data/local/cfg-hhniy/app_device" dev="sdb2" ino=263037 scontext=u:r:shell:s0 tcontext=u:object_r:system_data_file:s0 tclass=file permissive=1
+02-17 15:02:12.821  4778  4778 D AndroidRuntime: Calling main entry com.android.commands.monkey.Monkey
+02-17 15:02:12.826  4778  4778 W Monkey  : args: [-p, org.efimef.digitalid, -c, android.intent.category.LAUNCHER, 1]
+02-17 15:02:12.826  4778  4778 W Monkey  :  arg: "-p"
+02-17 15:02:12.826  4778  4778 W Monkey  :  arg: "org.efimef.digitalid"
+02-17 15:02:12.826  4778  4778 W Monkey  :  arg: "-c"
+02-17 15:02:12.826  4778  4778 W Monkey  :  arg: "android.intent.category.LAUNCHER"
+02-17 15:02:12.827  4778  4778 W Monkey  :  arg: "1"
+02-17 15:02:12.827  4778  4778 W Monkey  : data="org.efimef.digitalid"
+02-17 15:02:12.827  4778  4778 W Monkey  : data="android.intent.category.LAUNCHER"
+--------- beginning of system
+02-17 15:02:12.894  1575  1589 W BroadcastQueue: Skipping deliver [background] BroadcastRecord{83800b5 u-1 android.net.conn.CONNECTIVITY_CHANGE} to ReceiverList{10da34a 4778 (unknown name)/2000/u-1 remote:46f8b9f}: process gone or crashing
+02-17 15:02:12.906  1575  2487 I ActivityManager: START u0 {act=android.intent.action.MAIN cat=[android.intent.category.LAUNCHER] flg=0x10200000 cmp=org.efimef.digitalid/.MainActivity} from uid 2000
+02-17 15:02:12.918  1575  2487 W Binder  : Outgoing transactions from this process must be FLAG_ONEWAY
+02-17 15:02:12.918  1575  2487 W Binder  : java.lang.Throwable
+02-17 15:02:12.918  1575  2487 W Binder  : 	at android.os.BinderProxy.transact(Binder.java:1114)
+02-17 15:02:12.918  1575  2487 W Binder  : 	at android.app.IActivityController$Stub$Proxy.activityStarting(IActivityController.java:176)
+02-17 15:02:12.918  1575  2487 W Binder  : 	at com.android.server.am.ActivityStarter.startActivity(ActivityStarter.java:745)
+02-17 15:02:12.918  1575  2487 W Binder  : 	at com.android.server.am.ActivityStarter.startActivity(ActivityStarter.java:551)
+02-17 15:02:12.918  1575  2487 W Binder  : 	at com.android.server.am.ActivityStarter.startActivityMayWait(ActivityStarter.java:1156)
+02-17 15:02:12.918  1575  2487 W Binder  : 	at com.android.server.am.ActivityStarter.execute(ActivityStarter.java:490)
+02-17 15:02:12.918  1575  2487 W Binder  : 	at com.android.server.am.ActivityManagerService.startActivityAsUser(ActivityManagerService.java:5210)
+02-17 15:02:12.918  1575  2487 W Binder  : 	at com.android.server.am.ActivityManagerService.startActivityAsUser(ActivityManagerService.java:5111)
+02-17 15:02:12.918  1575  2487 W Binder  : 	at com.android.server.am.ActivityManagerService.startActivity(ActivityManagerService.java:5102)
+02-17 15:02:12.918  1575  2487 W Binder  : 	at android.app.IActivityManager$Stub.onTransact$startActivity$(IActivityManager.java:10088)
+02-17 15:02:12.918  1575  2487 W Binder  : 	at android.app.IActivityManager$Stub.onTransact(IActivityManager.java:122)
+02-17 15:02:12.918  1575  2487 W Binder  : 	at com.android.server.am.ActivityManagerService.onTransact(ActivityManagerService.java:3308)
+02-17 15:02:12.918  1575  2487 W Binder  : 	at android.os.Binder.execTransact(Binder.java:731)
+02-17 15:02:13.018  4778  4778 I Monkey  : Events injected: 1
+02-17 15:02:13.029  2441  2441 W ContextImpl: Calling a method in the system process without a qualified user: android.app.ContextImpl.startService:1531 android.content.ContextWrapper.startService:664 android.content.ContextWrapper.startService:664 com.android.coreservice.CoreBroadcastReceiver.onReceive:44 android.app.ActivityThread.handleReceiver:3424 
+02-17 15:02:13.073  1575  1575 V SettingsProvider: Notifying for 0: content://settings/system/user_rotation
+02-17 15:02:13.182  1575  3622 W ActivityManager: Slow operation: 52ms so far, now at startProcess: building args
+02-17 15:02:13.182  1575  3622 W ActivityManager: Slow operation: 73ms so far, now at startProcess: done starting proc!
+02-17 15:02:13.186  1575  1575 V SettingsProvider: Notifying for 0: content://settings/system/accelerometer_rotation
+02-17 15:02:13.187  1575  1591 W ActivityManager: Slow operation: 56ms so far, now at startProcess: asking zygote to start proc
+02-17 15:02:13.189  4778  4778 I Monkey  : ## Network stats: elapsed time=208ms (0ms mobile, 0ms wifi, 208ms not connected)
+02-17 15:02:13.201  1575  1591 W ActivityManager: Slow operation: 71ms so far, now at startProcess: returned from zygote!
+02-17 15:02:13.204  4778  4778 I app_process: System.exit called, status: 0
+02-17 15:02:13.204  4778  4778 I AndroidRuntime: VM exiting with result code 0.
+02-17 15:02:13.204  1575  1591 W ActivityManager: Slow operation: 74ms so far, now at startProcess: done updating battery stats
+02-17 15:02:13.217  4792  4792 I Zygote  : seccomp disabled by setenforce 0
+02-17 15:02:13.229  1575  1591 W ActivityManager: Slow operation: 99ms so far, now at startProcess: building log message
+02-17 15:02:13.229  1575  1591 I ActivityManager: Start proc 4792:org.efimef.digitalid/u0a62 for activity org.efimef.digitalid/.MainActivity
+02-17 15:02:13.229  1575  1591 W ActivityManager: Slow operation: 99ms so far, now at startProcess: starting to update pids map
+02-17 15:02:13.229  1575  1591 W ActivityManager: Slow operation: 99ms so far, now at startProcess: done updating pids map
+02-17 15:02:13.232  4792  4792 D nativebridge: call UnloadNativeBridge! state=1
+02-17 15:02:13.240  4792  4792 E fimef.digitali: Not starting debugger since process cannot load the jdwp agent.
+02-17 15:02:13.390  2441  2441 W ContextImpl: Calling a method in the system process without a qualified user: android.app.ContextImpl.startService:1531 android.content.ContextWrapper.startService:664 android.content.ContextWrapper.startService:664 com.android.coreservice.CoreBroadcastReceiver.onReceive:53 android.app.ActivityThread.handleReceiver:3424 
+02-17 15:02:13.441  2559  2802 D EGL_adreno: eglMakeCurrent: 0xd46fb6e0: ver 3 1 (tinfo 0xd477f6c0)
+02-17 15:02:13.520  1575  1584 I system_server: Background concurrent copying GC freed 268220(9MB) AllocSpace objects, 32(640KB) LOS objects, 42% free, 14MB/24MB, paused 342us total 102.291ms
+02-17 15:02:13.616  2326  4774 D AdvertisingIdClient: AdvertisingIdClient already created.
+02-17 15:02:13.623  2326  4774 I AdvertisingIdClient: shouldSendLog 82442
+02-17 15:02:13.623  2326  4774 I AdvertisingIdClient: GetInfoInternal elapse 7ms
+02-17 15:02:13.632  1575  1582 W System  : A resource failed to call close. 
+02-17 15:02:13.633  1575  1582 I chatty  : uid=1000(system) FinalizerDaemon identical 28 lines
+02-17 15:02:13.633  1575  1582 W System  : A resource failed to call close. 
+02-17 15:02:13.716  4792  4792 W SoLoader: Initializing SoLoader: 0
+02-17 15:02:13.716  4792  4792 W SoLoader: Recording new base apk path: /data/app/org.efimef.digitalid-LgajGyDWYDFLLgpcGH8CSA==/base.apk
+02-17 15:02:13.716  4792  4792 W SoLoader: Previously recorded 0 base apk paths.
+02-17 15:02:13.717  4792  4792 I SoLoader: Preparing SO source: DirectorySoSource[root = /system/vendor/lib64 flags = 2]
+02-17 15:02:13.717  4792  4792 I SoLoader: Preparing SO source: DirectorySoSource[root = /system/lib64 flags = 2]
+02-17 15:02:13.717  4792  4792 I SoLoader: Preparing SO source: DirectApkSoSource[root = [/data/app/org.efimef.digitalid-LgajGyDWYDFLLgpcGH8CSA==/base.apk!/lib/x86_64]]
+02-17 15:02:13.727  4792  4792 I SoLoader: Preparing SO source: ApplicationSoSource[DirectorySoSource[root = /data/app/org.efimef.digitalid-LgajGyDWYDFLLgpcGH8CSA==/lib/x86_64 flags = 0]]
+02-17 15:02:13.727  4792  4792 I SoLoader: init finish: 4 SO sources prepared
+02-17 15:02:13.727  4792  4792 W SoLoader: SoLoader initialized: 8
+02-17 15:02:13.762  4792  4792 D AppCompatDelegate: Checking for metadata for AppLocalesMetadataHolderService : Service not found
+02-17 15:02:13.801  4792  4792 W SoLoader: SoLoader already initialized
+02-17 15:02:13.842  4792  4792 D jni_lib_merge: Entering merged library JNI_OnLoad.
+02-17 15:02:13.842  4792  4792 D jni_lib_merge: Preparing 4 pre-merged libs (including stub)
+02-17 15:02:13.842  4792  4792 D jni_lib_merge: Preparing to register libhermes_executor_so.  onload_func: 0x7fff57e70280
+02-17 15:02:13.842  4792  4792 D jni_lib_merge: Preparing to register libhermesinstancejni_so.  onload_func: 0x7fff57e76910
+02-17 15:02:13.842  4792  4792 D jni_lib_merge: Preparing to register libjsijniprofiler_so.  onload_func: 0x7fff57e77000
+02-17 15:02:13.842  4792  4792 D jni_lib_merge: About to register 3 actual methods.
+02-17 15:02:13.843  4792  4792 W SoLoader: SoLoader already initialized
+02-17 15:02:13.847  4792  4792 D jni_lib_merge: Entering merged library JNI_OnLoad.
+02-17 15:02:13.847  4792  4792 D jni_lib_merge: Preparing 12 pre-merged libs (including stub)
+02-17 15:02:13.847  4792  4792 D jni_lib_merge: Preparing to register libfabricjni_so.  onload_func: 0x7fff58219360
+02-17 15:02:13.847  4792  4792 D jni_lib_merge: Preparing to register libmapbufferjni_so.  onload_func: 0x7fff58269130
+02-17 15:02:13.847  4792  4792 D jni_lib_merge: Preparing to register libreact_devsupportjni_so.  onload_func: 0x7fff582e0a80
+02-17 15:02:13.847  4792  4792 D jni_lib_merge: Preparing to register libreact_featureflagsjni_so.  onload_func: 0x7fff582e7880
+02-17 15:02:13.847  4792  4792 D jni_lib_merge: Preparing to register libreact_newarchdefaults_so.  onload_func: 0x7fff5830c690
+02-17 15:02:13.847  4792  4792 D jni_lib_merge: Preparing to register libreactnativeblob_so.  onload_func: 0x7fff583a4ad0
+02-17 15:02:13.847  4792  4792 D jni_lib_merge: Preparing to register libreactnativejni_so.  onload_func: 0x7fff583c3700
+02-17 15:02:13.847  4792  4792 D jni_lib_merge: Preparing to register librninstance_so.  onload_func: 0x7fff583de800
+02-17 15:02:13.847  4792  4792 D jni_lib_merge: Preparing to register libturbomodulejsijni_so.  onload_func: 0x7fff58444a10
+02-17 15:02:13.847  4792  4792 D jni_lib_merge: Preparing to register libuimanagerjni_so.  onload_func: 0x7fff5844c9e0
+02-17 15:02:13.847  4792  4792 D jni_lib_merge: Preparing to register libyoga_so.  onload_func: 0x7fff58451eb0
+02-17 15:02:13.847  4792  4792 D jni_lib_merge: About to register 11 actual methods.
+02-17 15:02:13.864  4792  4792 D OpenGLRenderer: Skia GL Pipeline
+02-17 15:02:13.867  2441  2441 W ContextImpl: Calling a method in the system process without a qualified user: android.app.ContextImpl.startService:1531 android.content.ContextWrapper.startService:664 android.content.ContextWrapper.startService:664 com.android.coreservice.CoreBroadcastReceiver.onReceive:53 android.app.ActivityThread.handleReceiver:3424 
+02-17 15:02:13.999  1575  1672 W system_server: Long monitor contention with owner NetworkPolicy.uid (1673) at void com.android.server.net.NetworkPolicyManagerService.handleUidChanged(int, int, long)(NetworkPolicyManagerService.java:4428) waiters=0 in boolean com.android.server.net.NetworkPolicyManagerService.isUidNetworkingBlockedInternal(int, boolean) for 103ms
+02-17 15:02:14.070  4792  4792 I RenderThread: type=1400 audit(0.0:688): avc: denied { read write } for name="fastpipe" dev="tmpfs" ino=5337 scontext=u:r:untrusted_app:s0:c62,c256,c512,c768 tcontext=u:object_r:device:s0 tclass=chr_file permissive=1
+02-17 15:02:14.070  4792  4792 I RenderThread: type=1400 audit(0.0:688): avc: denied { open } for path="/dev/fastpipe" dev="tmpfs" ino=5337 scontext=u:r:untrusted_app:s0:c62,c256,c512,c768 tcontext=u:object_r:device:s0 tclass=chr_file permissive=1
+02-17 15:02:14.070  4792  4792 W RenderThread: type=1300 audit(0.0:688): arch=c000003e syscall=257 success=yes exit=36 a0=ffffff9c a1=7ffff516ccaa a2=2 a3=0 items=0 ppid=1406 auid=4294967295 uid=10062 gid=10062 euid=10062 suid=10062 fsuid=10062 egid=10062 sgid=10062 fsgid=10062 tty=(none) ses=4294967295 exe="/system/bin/app_process64" subj=u:r:untrusted_app:s0:c62,c256,c512,c768 key=(null)
+02-17 15:02:14.070  1364  1364 W auditd  : type=1327 audit(0.0:688): proctitle="org.efimef.digitalid"
+02-17 15:02:14.070  1364  1364 W auditd  : type=1320 audit(0.0:688): 
+02-17 15:02:14.075  4792  4816 I HostConnection: HostConnection::HostConnection: pid=4792, tid=4816, this=0x7fff6be5f4e0
+02-17 15:02:14.116  4792  4816 I         : fastpipe: Connect success
+02-17 15:02:14.117  4792  4816 D HostConnection: HostRPC::connect sucess: app=org.efimef.digitalid, pid=4792, tid=4816, this=0x7fff6bf27600
+02-17 15:02:14.118  4792  4816 E HostConnection: /data/local/cfg-hhniy/gl_force format error! com.ncsoft.lineagen gl
+02-17 15:02:14.118  4792  4816 E HostConnection: /data/local/cfg-hhniy/gl_force format error! com.vng.thiennhaiminhnguyetdaovng gl
+02-17 15:02:14.118  4792  4816 E HostConnection: /data/local/cfg-hhniy/gl_force format error! com.proximabeta.tdm.kr gl
+02-17 15:02:14.118  4792  4816 E HostConnection: /data/local/cfg-hhniy/gl_force format error! com.proximabeta.tdm.kr.cloud gl
+02-17 15:02:14.118  4792  4816 E HostConnection: /data/local/cfg-hhniy/gl_force format error! com.proximabeta.tdm.kr.onestore gl
+02-17 15:02:14.118  4792  4816 E HostConnection: /data/local/cfg-hhniy/gl_force format error! com.tencent.tmgp.wuxia gl
+02-17 15:02:14.118  4792  4816 E HostConnection: /data/local/cfg-hhniy/gl_force format error! com.qqsy.gundam.ld gl
+02-17 15:02:14.118  4792  4816 E HostConnection: /data/local/cfg-hhniy/gl_force format error! com.qqsy.gundam gl
+02-17 15:02:14.118  4792  4816 E HostConnection: /data/local/cfg-hhniy/gl_force format error! com.gravity.cute.tw.testand gl
+02-17 15:02:14.118  4792  4816 E HostConnection: /data/local/cfg-hhniy/gl_force format error! com.cayenne.gvl gl
+02-17 15:02:14.118  4792  4816 E HostConnection: /data/local/cfg-hhniy/gl_force format error! com.netmarble.tskgb gl
+02-17 15:02:14.118  4792  4816 E HostConnection: /data/local/cfg-hhniy/gl_force format error! com.longe.racehmt gl
+02-17 15:02:14.118  4792  4816 E HostConnection: /data/local/cfg-hhniy/gl_force format error! com.gvi.robegins.aos gl
+02-17 15:02:14.118  4792  4816 E HostConnection: /data/local/cfg-hhniy/gl_force format error! com.studiocodedragon.projectss gl
+02-17 15:02:14.118  4792  4816 E HostConnection: /data/local/cfg-hhniy/gl_force format error! com.jingxiu.hygd gl
+02-17 15:02:14.118  4792  4816 E HostConnection: /data/local/cfg-hhniy/gl_force format error! com.playwith.nsealm.tw.googl gl
+02-17 15:02:14.118  4792  4816 E HostConnection: /data/local/cfg-hhniy/gl_force format error! com.playwith.sealm.kr.googl gl
+02-17 15:02:14.118  4792  4816 E HostConnection: /data/local/cfg-hhniy/gl_force format error! com.gravity.cute.tw.and gl
+02-17 15:02:14.118  4792  4816 E HostConnection: /data/local/cfg-hhniy/gl_force format error! com.forgefun.redcovenant gl
+02-17 15:02:14.118  4792  4816 E HostConnection: /data/local/cfg-hhniy/gl_force format error! com.silkroad.mb gl
+02-17 15:02:14.118  4792  4816 E HostConnection: /data/local/cfg-hhniy/gl_force format error! com.vortexgravity.bealive.ld gl
+02-17 15:02:14.118  4792  4816 E HostConnection: /data/local/cfg-hhniy/gl_force format error! com.com2usholdings.soulstrike.android.google.global.normal gl
+02-17 15:02:14.118  4792  4816 E HostConnection: /data/local/cfg-hhniy/gl_force format error! com.cobby.lonelysurvivor gl
+02-17 15:02:14.118  4792  4816 E HostConnection: /data/local/cfg-hhniy/gl_force format error! com.cmge.ltqrc gl
+02-17 15:02:14.118  4792  4816 E HostConnection: /data/local/cfg-hhniy/gl_force format error! com.cmge.ltqrc.ld gl
+02-17 15:02:14.118  4792  4816 E HostConnection: /data/local/cfg-hhniy/gl_force format error! com.seasun.jxqy0.jsgf.xsj gl
+02-17 15:02:14.118  4792  4816 E HostConnection: /data/local/cfg-hhniy/gl_force format error! com.seasun.jxqy0.huawei gl
+02-17 15:02:14.118  4792  4816 E HostConnection: /data/local/cfg-hhniy/gl_force format error! com.mobigame.tt12 gl
+02-17 15:02:14.118  4792  4816 E HostConnection: /data/local/cfg-hhniy/gl_force format error! com.kaneten.client.and gl
+02-17 15:02:14.118  4792  4816 E HostConnection: /data/local/cfg-hhniy/gl_force format error! com.playwith.rohan2.kr gl
+02-17 15:02:14.118  4792  4816 E HostConnection: /data/local/cfg-hhniy/gl_force format error! com.linecorp.LGATF gl
+02-17 15:02:14.119  4792  4816 E HostConnection: /data/local/cfg-hhniy/gl_force format error! com.atknsyl.weaponmaster gl
+02-17 15:02:14.119  4792  4816 E HostConnection: /data/local/cfg-hhniy/gl_force format error! com.blizzard.diablo.immortal gl
+02-17 15:02:14.119  4792  4816 E HostConnection: /data/local/cfg-hhniy/gl_force format error! com.netease.dfjssea gl
+02-17 15:02:14.119  4792  4816 E HostConnection: /data/local/cfg-hhniy/gl_force format error! com.netease.dfjsjp gl
+02-17 15:02:14.119  4792  4816 E HostConnection: /data/local/cfg-hhniy/gl_force format error! com.netease.dfjskr gl
+02-17 15:02:14.119  4792  4816 E HostConnection: /data/local/cfg-hhniy/gl_force format error! jp.co.applibot.chiikawapocketgl gl
+02-17 15:02:14.119  4792  4816 E HostConnection: /data/local/cfg-hhniy/gl_force format error! jp.co.applibot.chiikawapocket gl
+02-17 15:02:14.119  4792  4816 E HostConnection: /data/local/cfg-hhniy/gl_force format error! com.kakaogames.pcr gl
+02-17 15:02:14.119  4792  4816 E HostConnection: /data/local/cfg-hhniy/gl_force format error! com.kakaogames.eversoul gl
+02-17 15:02:14.119  4792  4816 E HostConnection: /data/local/cfg-hhniy/gl_force format error! com.kakaogames.eversouljp gl
+02-17 15:02:14.119  4792  4816 E HostConnection: /data/local/cfg-hhniy/gl_force format error! com.ntrance.dkr.and gl
+02-17 15:02:14.119  4792  4816 E HostConnection: /data/local/cfg-hhniy/gl_force format error! com.zlongame.eversoul gl
+02-17 15:02:14.119  4792  4816 E HostConnection: /data/local/cfg-hhniy/gl_force format error! com.Chillgaming.oneState gl
+02-17 15:02:14.119  4792  4816 E HostConnection: /data/local/cfg-hhniy/gl_force format error! com.activision.callofduty.shooter gl
+02-17 15:02:14.119  4792  4816 E HostConnection: /data/local/cfg-hhniy/gl_force format error! com.garena.game.codm gl
+02-17 15:02:14.119  4792  4816 E HostConnection: /data/local/cfg-hhniy/gl_force format error! com.vng.codmvn gl
+02-17 15:02:14.119  4792  4816 E HostConnection: /data/local/cfg-hhniy/gl_force format error! com.VIIBYTE.RivalisAcademiaNexus gl
+02-17 15:02:14.119  4792  4816 E HostConnection: /data/local/cfg-hhniy/gl_force format error! com.qjsjqy.ld gl
+02-17 15:02:14.119  4792  4816 E HostConnection: /data/local/cfg-hhniy/gl_force format error! com.dragonli.projectsnow gl
+02-17 15:02:14.119  4792  4816 E HostConnection: /data/local/cfg-hhniy/gl_force format error! com.netmarble.kofafk gl
+02-17 15:02:14.119  4792  4816 E HostConnection: /data/local/cfg-hhniy/gl_force format error! com.greenmushroom.boomblitz.gp gl
+02-17 15:02:14.119  4792  4816 E HostConnection: /data/local/cfg-hhniy/gl_force format error! com.hermes.p6gameos gl
+02-17 15:02:14.119  4792  4816 E HostConnection: /data/local/cfg-hhniy/gl_force format error! com.crystal.usad gl
+02-17 15:02:14.119  4792  4816 E HostConnection: /data/local/cfg-hhniy/gl_force format error! com.jingxiu.yanwu gl
+02-17 15:02:14.119  4792  4816 E HostConnection: /data/local/cfg-hhniy/gl_force format error! com.playhardlab.heroes gl
+02-17 15:02:14.119  4792  4816 E HostConnection: /data/local/cfg-hhniy/gl_force format error! com.topgamestudio.americanblocksnipersurvival.jf gl
+02-17 15:02:14.119  4792  4816 E HostConnection: /data/local/cfg-hhniy/gl_force format error! vng.games.gs1.phongthan.mobile.com gl
+02-17 15:02:14.119  4792  4816 E HostConnection: /data/local/cfg-hhniy/gl_force format error! com.userjoy.szm gl
+02-17 15:02:14.119  4792  4816 E HostConnection: /data/local/cfg-hhniy/gl_force format error! com.netease.yzs gl
+02-17 15:02:14.119  4792  4816 E HostConnection: /data/local/cfg-hhniy/gl_force format error! com.korea.tamamonkr.google gl
+02-17 15:02:14.119  4792  4816 E HostConnection: /data/local/cfg-hhniy/gl_force format error! com.huanxi.datulong gl
+02-17 15:02:14.119  4792  4816 E HostConnection: /data/local/cfg-hhniy/gl_force format error! com.com2us.legendsummoner.android.google.global.normal gl
+02-17 15:02:14.119  4792  4816 E HostConnection: /data/local/cfg-hhniy/gl_force format error! com.metek.atm2 gl
+02-17 15:02:14.119  4792  4816 E HostConnection: /data/local/cfg-hhniy/gl_force format error! com.huiqi.mrby gl
+02-17 15:02:14.119  4792  4816 E HostConnection: /data/local/cfg-hhniy/gl_force format error! com.tencent.wlfz gl
+02-17 15:02:14.119  4792  4816 E HostConnection: /data/local/cfg-hhniy/gl_force format error! com.yh.hunter4.firstformal gl
+02-17 15:02:14.119  4792  4816 E HostConnection: /data/local/cfg-hhniy/gl_force format error! com.phonecoolgame.sanguo gl
+02-17 15:02:14.119  4792  4816 E HostConnection: /data/local/cfg-hhniy/gl_force format error! com.epidgames.trickcalrevive gl
+02-17 15:02:14.119  4792  4816 E HostConnection: /data/local/cfg-hhniy/gl_force format error! com.tanle.sycq gl
+02-17 15:02:14.119  4792  4816 E HostConnection: /data/local/cfg-hhniy/gl_force format error! com.youzu.djlw gl
+02-17 15:02:14.119  4792  4816 E HostConnection: /data/local/cfg-hhniy/gl_force format error! com.happyelements.rxr gl
+02-17 15:02:14.119  4792  4816 E HostConnection: /data/local/cfg-hhniy/gl_force format error! com.tencent.zd gl
+02-17 15:02:14.119  4792  4816 E HostConnection: /data/local/cfg-hhniy/gl_force format error! com.leisure.tw gl
+02-17 15:02:14.119  4792  4816 E HostConnection: /data/local/cfg-hhniy/gl_force format error! aos.playpark.ygc gl
+02-17 15:02:14.119  4792  4816 E HostConnection: /data/local/cfg-hhniy/gl_force format error! com.zhuyue.dungeon4 gl
+02-17 15:02:14.119  4792  4816 E HostConnection: /data/local/cfg-hhniy/gl_force format error! com.sunking.as3d gl
+02-17 15:02:14.119  4792  4816 E HostConnection: /data/local/cfg-hhniy/gl_force format error! com.ncsoft.bsh gl
+02-17 15:02:14.119  4792  4816 E HostConnection: /data/local/cfg-hhniy/gl_force format error! com.zengame.hlmjhdj gl
+02-17 15:02:14.119  4792  4816 E HostConnection: /data/local/cfg-hhniy/gl_force format error! com.zengame.zjscmj gl
+02-17 15:02:14.119  4792  4816 E HostConnection: /data/local/cfg-hhniy/gl_force format error! com.leduo.zjscmj gl
+02-17 15:02:14.119  4792  4816 E HostConnection: /data/local/cfg-hhniy/gl_force format error! com.tencent.tmgp.scmjxzddnew gl
+02-17 15:02:14.119  4792  4816 E HostConnection: /data/local/cfg-hhniy/gl_force format error! com.drivezone.car.race.game gl
+02-17 15:02:14.119  4792  4816 E HostConnection: /data/local/cfg-hhniy/gl_force format error! com.game.sgzzqtxsy gl
+02-17 15:02:14.119  4792  4816 E HostConnection: /data/local/cfg-hhniy/gl_force format error! com.leduo.ttmjdjb gl
+02-17 15:02:14.119  4792  4816 E HostConnection: /data/local/cfg-hhniy/gl_force format error! com.hygame.mhxy.tw.gp gl
+02-17 15:02:14.119  4792  4816 E HostConnection: /data/local/cfg-hhniy/gl_force format error! com.hxen.ld gl
+02-17 15:02:14.119  4792  4816 E HostConnection: /data/local/cfg-hhniy/gl_force format error! com.leduo.ttmjdjb.p234 gl
+02-17 15:02:14.119  4792  4816 E HostConnection: /data/local/cfg-hhniy/gl_force format error! com.kt.ld gl
+02-17 15:02:14.119  4792  4816 E HostConnection: /data/local/cfg-hhniy/gl_force format error! gg.maxion.knt.and gl
+02-17 15:02:14.119  4792  4816 E HostConnection: /data/local/cfg-hhniy/gl_force format error! com.wwjd.ld gl
+02-17 15:02:14.119  4792  4816 E HostConnection: /data/local/cfg-hhniy/gl_force format error! com.uwocn.aos gl
+02-17 15:02:14.119  4792  4816 E HostConnection: /data/local/cfg-hhniy/gl_force format error! com.joycrit.wac.and.ru.ld gl
+02-17 15:02:14.119  4792  4816 E HostConnection: /data/local/cfg-hhniy/gl_force format error! com.hx.interactive gl
+02-17 15:02:14.119  4792  4816 E HostConnection: /data/local/cfg-hhniy/gl_force format error! com.chinesegamer.xqj gl
+02-17 15:02:14.119  4792  4816 E HostConnection: /data/local/cfg-hhniy/gl_force format error! com.joycrit.wac.and.apac.ld gl
+02-17 15:02:14.119  4792  4816 E HostConnection: /data/local/cfg-hhniy/gl_force format error! com.wanxiu.cn.yaocuotu gl
+02-17 15:02:14.120  4792  4816 D HostConnection: queryAndSetGLESMaxVersion select gles-version: 3.1 hostGLVersion:46 process:org.efimef.digitalid
+02-17 15:02:14.124  4792  4816 I         : fastpipe: Connect success
+02-17 15:02:14.124  4792  4816 D HostConnection: recv ProcessPuidReply name=org.efimef.digitalid puid=12 g_u64CapsFlag=1d
+02-17 15:02:14.136  4792  4816 I ConfigStore: android::hardware::configstore::V1_0::ISurfaceFlingerConfigs::hasWideColorDisplay retrieved: 0
+02-17 15:02:14.136  4792  4816 I ConfigStore: android::hardware::configstore::V1_0::ISurfaceFlingerConfigs::hasHDRDisplay retrieved: 0
+02-17 15:02:14.136  4792  4816 I OpenGLRenderer: Initialized EGL, version 1.4
+02-17 15:02:14.136  4792  4816 D OpenGLRenderer: Swap behavior 1
+02-17 15:02:14.137  4792  4816 I EGL_adreno: eglCreateContext request GLES major-version=2
+02-17 15:02:14.151  4792  4816 D EGL_adreno: eglCreateContext: 0x7fff6be366e0: maj 3 min 1 rcv 4
+02-17 15:02:14.191  4792  4816 D EGL_adreno: eglMakeCurrent: 0x7fff6be366e0: ver 3 1 (tinfo 0x7fff6be0d9e0)
+02-17 15:02:14.199  4792  4816 D HostConnection: ExtendedRCEncoderContext GL_VERSION return OpenGL ES 3.1
+02-17 15:02:14.203  4792  4816 E eglCodecCommon: glUtilsParamSize: unknow param 0x00008c29
+02-17 15:02:14.204  4792  4816 W GLESv2_enc: no support GL_NUM_PROGRAM_BINARY_FORMATS
+02-17 15:02:14.225  4792  4816 D vndksupport: Loading /vendor/lib64/hw/android.hardware.graphics.mapper@2.0-impl.so from current namespace instead of sphal namespace.
+02-17 15:02:14.285  4792  4816 D vndksupport: Loading /vendor/lib64/hw/gralloc.default.so from current namespace instead of sphal namespace.
+02-17 15:02:14.349  4792  4816 E EGL_adreno: tid 4816: eglSurfaceAttrib(1338): error 0x3009 (EGL_BAD_MATCH)
+02-17 15:02:14.349  4792  4816 W OpenGLRenderer: Failed to set EGL_SWAP_BEHAVIOR on surface 0x7fff6be27d00, error=EGL_BAD_MATCH
+02-17 15:02:14.357  2441  2441 W ContextImpl: Calling a method in the system process without a qualified user: android.app.ContextImpl.startService:1531 android.content.ContextWrapper.startService:664 android.content.ContextWrapper.startService:664 com.android.coreservice.CoreBroadcastReceiver.onReceive:69 android.app.ActivityThread.handleReceiver:3424 
+02-17 15:02:14.364  2441  2441 W ContextImpl: Calling a method in the system process without a qualified user: android.app.ContextImpl.startService:1531 android.content.ContextWrapper.startService:664 android.content.ContextWrapper.startService:664 com.android.coreservice.CoreBroadcastReceiver.onReceive:69 android.app.ActivityThread.handleReceiver:3424 
+02-17 15:02:14.371  4792  4816 D EGL_adreno: eglMakeCurrent: 0x7fff6be366e0: ver 3 1 (tinfo 0x7fff6be0d9e0)
+02-17 15:02:14.383  4792  4810 I ExpoModulesCore: Γ£à AppContext was initialized
+02-17 15:02:14.420  1575  1588 I ActivityManager: Displayed org.efimef.digitalid/.MainActivity: +1s503ms
+02-17 15:02:14.435  2020  4555 I FontLog : (REDACTED) Received query %s, URI %s
+02-17 15:02:14.436  2020  4555 I FontLog : (REDACTED) Query [%s] resolved to %s
+02-17 15:02:14.449  2020  4555 I FontLog : (REDACTED) Fetch %s end status %s
+02-17 15:02:14.477  4792  4818 W unknown:ViewManagerPropertyUpdater: Could not find generated setter for class com.facebook.react.views.drawer.ReactDrawerLayoutManager
+02-17 15:02:14.478  1435  1998 W SurfaceFlinger: Attempting to set client state on removed layer: Splash Screen org.efimef.digitalid#0
+02-17 15:02:14.479  1435  1998 W SurfaceFlinger: Attempting to destroy on removed layer: Splash Screen org.efimef.digitalid#0
+02-17 15:02:14.482  4792  4818 W unknown:ViewManagerPropertyUpdater: Could not find generated setter for class com.facebook.react.uimanager.LayoutShadowNode
+02-17 15:02:14.485  4792  4818 W unknown:ViewManagerPropertyUpdater: Could not find generated setter for class com.facebook.react.views.scroll.ReactHorizontalScrollViewManager
+02-17 15:02:14.488  4792  4818 W unknown:ViewManagerPropertyUpdater: Could not find generated setter for class com.facebook.react.views.scroll.ReactHorizontalScrollContainerViewManager
+02-17 15:02:14.490  4792  4818 W unknown:ViewManagerPropertyUpdater: Could not find generated setter for class com.facebook.react.views.progressbar.ReactProgressBarViewManager
+02-17 15:02:14.492  4792  4818 W unknown:ViewManagerPropertyUpdater: Could not find generated setter for class com.facebook.react.views.progressbar.ProgressBarShadowNode
+02-17 15:02:14.493  4792  4818 W unknown:ViewManagerPropertyUpdater: Could not find generated setter for class com.facebook.react.views.scroll.ReactScrollViewManager
+02-17 15:02:14.498  4792  4818 W unknown:ViewManagerPropertyUpdater: Could not find generated setter for class com.facebook.react.views.switchview.ReactSwitchManager
+02-17 15:02:14.502  2020  4555 I FontLog : (REDACTED) Pulling font file for id = %d, cache size = %d
+02-17 15:02:14.504  4792  4818 W unknown:ViewManagerPropertyUpdater: Could not find generated setter for class com.facebook.react.views.switchview.ReactSwitchManager$ReactSwitchShadowNode
+02-17 15:02:14.505  4792  4818 W unknown:ViewManagerPropertyUpdater: Could not find generated setter for class com.facebook.react.views.safeareaview.ReactSafeAreaViewManager
+02-17 15:02:14.508  4792  4818 W unknown:ViewManagerPropertyUpdater: Could not find generated setter for class com.facebook.react.views.safeareaview.ReactSafeAreaViewShadowNode
+02-17 15:02:14.510  4792  4818 W unknown:ViewManagerPropertyUpdater: Could not find generated setter for class com.facebook.react.views.swiperefresh.SwipeRefreshLayoutManager
+02-17 15:02:14.515  4792  4818 W unknown:ViewManagerPropertyUpdater: Could not find generated setter for class com.facebook.react.views.text.frescosupport.FrescoBasedReactTextInlineImageViewManager
+02-17 15:02:14.516  4792  4818 W unknown:ViewManagerPropertyUpdater: Could not find generated setter for class com.facebook.react.views.text.frescosupport.FrescoBasedReactTextInlineImageShadowNode
+02-17 15:02:14.517  4792  4818 W unknown:ViewManagerPropertyUpdater: Could not find generated setter for class com.facebook.react.views.image.ReactImageManager
+02-17 15:02:14.519  4792  4818 W unknown:ViewManagerPropertyUpdater: Could not find generated setter for class com.facebook.react.views.modal.ReactModalHostManager
+02-17 15:02:14.521  4792  4818 W unknown:ViewManagerPropertyUpdater: Could not find generated setter for class com.facebook.react.views.text.ReactRawTextManager
+02-17 15:02:14.522  4792  4818 W unknown:ViewManagerPropertyUpdater: Could not find generated setter for class com.facebook.react.views.text.ReactRawTextShadowNode
+02-17 15:02:14.527  4792  4818 W unknown:ViewManagerPropertyUpdater: Could not find generated setter for class com.facebook.react.views.textinput.ReactTextInputManager
+02-17 15:02:14.530  4792  4818 W unknown:ViewManagerPropertyUpdater: Could not find generated setter for class com.facebook.react.views.textinput.ReactTextInputShadowNode
+02-17 15:02:14.532  4792  4818 W unknown:ViewManagerPropertyUpdater: Could not find generated setter for class com.facebook.react.views.text.ReactTextViewManager
+02-17 15:02:14.533  4792  4818 W unknown:ViewManagerPropertyUpdater: Could not find generated setter for class com.facebook.react.views.text.ReactTextShadowNode
+02-17 15:02:14.534  4792  4818 W unknown:ViewManagerPropertyUpdater: Could not find generated setter for class com.facebook.react.views.view.ReactViewManager
+02-17 15:02:14.536  4792  4818 W unknown:ViewManagerPropertyUpdater: Could not find generated setter for class com.facebook.react.views.text.ReactVirtualTextViewManager
+02-17 15:02:14.536  4792  4818 W unknown:ViewManagerPropertyUpdater: Could not find generated setter for class com.facebook.react.views.text.ReactVirtualTextShadowNode
+02-17 15:02:14.537  2020  4555 I FontLog : (REDACTED) Pulling font file for id = %d, cache size = %d
+02-17 15:02:14.537  4792  4818 W unknown:ViewManagerPropertyUpdater: Could not find generated setter for class com.facebook.react.views.unimplementedview.ReactUnimplementedViewManager
+02-17 15:02:14.538  4792  4818 W unknown:ViewManagerPropertyUpdater: Could not find generated setter for class expo.modules.kotlin.views.GroupViewManagerWrapper
+02-17 15:02:14.543  4792  4818 W unknown:ViewManagerPropertyUpdater: Could not find generated setter for class expo.modules.kotlin.views.SimpleViewManagerWrapper
+02-17 15:02:14.544  4792  4818 W unknown:ViewManagerPropertyUpdater: Could not find generated setter for class com.th3rdwave.safeareacontext.SafeAreaProviderManager
+02-17 15:02:14.546  4792  4818 W unknown:ViewManagerPropertyUpdater: Could not find generated setter for class com.th3rdwave.safeareacontext.SafeAreaViewManager
+02-17 15:02:14.547  4792  4818 W unknown:ViewManagerPropertyUpdater: Could not find generated setter for class com.th3rdwave.safeareacontext.SafeAreaViewShadowNode
+02-17 15:02:14.548  4792  4818 W unknown:ViewManagerPropertyUpdater: Could not find generated setter for class com.swmansion.rnscreens.ScreenContainerViewManager
+02-17 15:02:14.549  4792  4818 W unknown:ViewManagerPropertyUpdater: Could not find generated setter for class com.swmansion.rnscreens.ScreenViewManager
+02-17 15:02:14.551  4792  4818 W unknown:ViewManagerPropertyUpdater: Could not find generated setter for class com.swmansion.rnscreens.ModalScreenViewManager
+02-17 15:02:14.551  4792  4818 W unknown:ViewManagerPropertyUpdater: Could not find generated setter for class com.swmansion.rnscreens.ScreenStackViewManager
+02-17 15:02:14.552  4792  4818 W unknown:ViewManagerPropertyUpdater: Could not find generated setter for class com.swmansion.rnscreens.ScreenStackHeaderConfigViewManager
+02-17 15:02:14.555  4792  4818 W unknown:ViewManagerPropertyUpdater: Could not find generated setter for class com.swmansion.rnscreens.ScreenStackHeaderSubviewManager
+02-17 15:02:14.556  4792  4818 W unknown:ViewManagerPropertyUpdater: Could not find generated setter for class com.swmansion.rnscreens.SearchBarManager
+02-17 15:02:14.557  4792  4818 W unknown:ViewManagerPropertyUpdater: Could not find generated setter for class com.swmansion.rnscreens.ScreenFooterManager
+02-17 15:02:14.558  4792  4818 W unknown:ViewManagerPropertyUpdater: Could not find generated setter for class com.swmansion.rnscreens.ScreenContentWrapperManager
+02-17 15:02:14.610  4792  4818 D NetworkSecurityConfig: No Network Security Config specified, using platform default
+02-17 15:02:14.717  4792  4817 I ExpoModulesCore: Γ£à JSI interop was installed
+02-17 15:02:14.718  4792  4817 W ExpoModulesCore: ΓÜá∩╕Å JSI interop was already installed
+02-17 15:02:14.722  4792  4817 I ExpoModulesCore: Γ£à Constants were exported
+02-17 15:02:14.847  4792  4817 I ReactNativeJS: Running "main"
+02-17 15:02:14.853  4792  4817 E ReactNativeJS: Error: Client Id property `androidClientId` must be defined to use Google auth on this platform.
+02-17 15:02:14.853  4792  4817 E ReactNativeJS: 
+02-17 15:02:14.853  4792  4817 E ReactNativeJS: This error is located at:
+02-17 15:02:14.853  4792  4817 E ReactNativeJS:     in App
+02-17 15:02:14.853  4792  4817 E ReactNativeJS:     in RCTView
+02-17 15:02:14.853  4792  4817 E ReactNativeJS:     in Unknown
+02-17 15:02:14.853  4792  4817 E ReactNativeJS:     in AppContainer, js engine: hermes
+02-17 15:02:14.860  4792  4817 E ReactNativeJS: Error: Client Id property `androidClientId` must be defined to use Google auth on this platform.
+02-17 15:02:14.860  4792  4817 E ReactNativeJS: 
+02-17 15:02:14.860  4792  4817 E ReactNativeJS: This error is located at:
+02-17 15:02:14.860  4792  4817 E ReactNativeJS:     in App
+02-17 15:02:14.860  4792  4817 E ReactNativeJS:     in RCTView
+02-17 15:02:14.860  4792  4817 E ReactNativeJS:     in Unknown
+02-17 15:02:14.860  4792  4817 E ReactNativeJS:     in AppContainer, js engine: hermes
+02-17 15:02:14.866  4792  4818 E unknown:ReactNative: Error: Client Id property `androidClientId` must be defined to use Google auth on this platform.
+02-17 15:02:14.866  4792  4818 E unknown:ReactNative: 
+02-17 15:02:14.866  4792  4818 E unknown:ReactNative: This error is located at:
+02-17 15:02:14.866  4792  4818 E unknown:ReactNative:     in App
+02-17 15:02:14.866  4792  4818 E unknown:ReactNative:     in RCTView
+02-17 15:02:14.866  4792  4818 E unknown:ReactNative:     in Unknown
+02-17 15:02:14.866  4792  4818 E unknown:ReactNative:     in AppContainer, js engine: hermes, stack:
+02-17 15:02:14.866  4792  4818 E unknown:ReactNative: invariantClientId@1:756166
+02-17 15:02:14.866  4792  4818 E unknown:ReactNative: anonymous@1:752405
+02-17 15:02:14.866  4792  4818 E unknown:ReactNative: useMemo@1:444959
+02-17 15:02:14.866  4792  4818 E unknown:ReactNative: anonymous@1:168983
+02-17 15:02:14.866  4792  4818 E unknown:ReactNative: useAuthRequest@1:751832
+02-17 15:02:14.866  4792  4818 E unknown:ReactNative: App@1:721261
+02-17 15:02:14.866  4792  4818 E unknown:ReactNative: renderWithHooks@1:398539
+02-17 15:02:14.866  4792  4818 E unknown:ReactNative: beginWork@1:415888
+02-17 15:02:14.866  4792  4818 E unknown:ReactNative: performUnitOfWork@1:434982
+02-17 15:02:14.866  4792  4818 E unknown:ReactNative: workLoopSync@1:434113
+02-17 15:02:14.866  4792  4818 E unknown:ReactNative: renderRootSync@1:433945
+02-17 15:02:14.866  4792  4818 E unknown:ReactNative: flushSyncWorkAcrossRoots_impl@1:388079
+02-17 15:02:14.866  4792  4818 E unknown:ReactNative: scheduleUpdateOnFiber@1:431431
+02-17 15:02:14.866  4792  4818 E unknown:ReactNative: updateContainer@1:440545
+02-17 15:02:14.866  4792  4818 E unknown:ReactNative: anonymous@1:447050
+02-17 15:02:14.866  4792  4818 E unknown:ReactNative: renderElement@1:115072
+02-17 15:02:14.866  4792  4818 E unknown:ReactNative: renderApplication@1:360722
+02-17 15:02:14.866  4792  4818 E unknown:ReactNative: anonymous@1:352564
+02-17 15:02:14.866  4792  4818 E unknown:ReactNative: runApplication@1:353013
+02-17 15:02:14.866  4792  4818 E unknown:ReactNative: __callFunction@1:107608
+02-17 15:02:14.866  4792  4818 E unknown:ReactNative: anonymous@1:106050
+02-17 15:02:14.866  4792  4818 E unknown:ReactNative: __guard@1:106990
+02-17 15:02:14.866  4792  4818 E unknown:ReactNative: callFunctionReturnFlushedQueue@1:106008
+--------- beginning of crash
+02-17 15:02:14.875  4792  4818 E AndroidRuntime: FATAL EXCEPTION: mqt_native_modules
+02-17 15:02:14.875  4792  4818 E AndroidRuntime: Process: org.efimef.digitalid, PID: 4792
+02-17 15:02:14.875  4792  4818 E AndroidRuntime: com.facebook.react.common.JavascriptException: Error: Client Id property `androidClientId` must be defined to use Google auth on this platform.
+02-17 15:02:14.875  4792  4818 E AndroidRuntime: 
+02-17 15:02:14.875  4792  4818 E AndroidRuntime: This error is located at:
+02-17 15:02:14.875  4792  4818 E AndroidRuntime:     in App
+02-17 15:02:14.875  4792  4818 E AndroidRuntime:     in RCTView
+02-17 15:02:14.875  4792  4818 E AndroidRuntime:     in Unknown
+02-17 15:02:14.875  4792  4818 E AndroidRuntime:     in AppContainer, js engine: hermes, stack:
+02-17 15:02:14.875  4792  4818 E AndroidRuntime: invariantClientId@1:756166
+02-17 15:02:14.875  4792  4818 E AndroidRuntime: anonymous@1:752405
+02-17 15:02:14.875  4792  4818 E AndroidRuntime: useMemo@1:444959
+02-17 15:02:14.875  4792  4818 E AndroidRuntime: anonymous@1:168983
+02-17 15:02:14.875  4792  4818 E AndroidRuntime: useAuthRequest@1:751832
+02-17 15:02:14.875  4792  4818 E AndroidRuntime: App@1:721261
+02-17 15:02:14.875  4792  4818 E AndroidRuntime: renderWithHooks@1:398539
+02-17 15:02:14.875  4792  4818 E AndroidRuntime: beginWork@1:415888
+02-17 15:02:14.875  4792  4818 E AndroidRuntime: performUnitOfWork@1:434982
+02-17 15:02:14.875  4792  4818 E AndroidRuntime: workLoopSync@1:434113
+02-17 15:02:14.875  4792  4818 E AndroidRuntime: renderRootSync@1:433945
+02-17 15:02:14.875  4792  4818 E AndroidRuntime: flushSyncWorkAcrossRoots_impl@1:388079
+02-17 15:02:14.875  4792  4818 E AndroidRuntime: scheduleUpdateOnFiber@1:431431
+02-17 15:02:14.875  4792  4818 E AndroidRuntime: updateContainer@1:440545
+02-17 15:02:14.875  4792  4818 E AndroidRuntime: anonymous@1:447050
+02-17 15:02:14.875  4792  4818 E AndroidRuntime: renderElement@1:115072
+02-17 15:02:14.875  4792  4818 E AndroidRuntime: renderApplication@1:360722
+02-17 15:02:14.875  4792  4818 E AndroidRuntime: anonymous@1:352564
+02-17 15:02:14.875  4792  4818 E AndroidRuntime: runApplication@1:353013
+02-17 15:02:14.875  4792  4818 E AndroidRuntime: __callFunction@1:107608
+02-17 15:02:14.875  4792  4818 E AndroidRuntime: anonymous@1:106050
+02-17 15:02:14.875  4792  4818 E AndroidRuntime: __guard@1:106990
+02-17 15:02:14.875  4792  4818 E AndroidRuntime: callFunctionReturnFlushedQueue@1:106008
+02-17 15:02:14.875  4792  4818 E AndroidRuntime: 
+02-17 15:02:14.875  4792  4818 E AndroidRuntime: 	at com.facebook.react.modules.core.ExceptionsManagerModule.reportException(ExceptionsManagerModule.kt:52)
+02-17 15:02:14.875  4792  4818 E AndroidRuntime: 	at java.lang.reflect.Method.invoke(Native Method)
+02-17 15:02:14.875  4792  4818 E AndroidRuntime: 	at com.facebook.react.bridge.JavaMethodWrapper.invoke(JavaMethodWrapper.java:372)
+02-17 15:02:14.875  4792  4818 E AndroidRuntime: 	at com.facebook.react.bridge.JavaModuleWrapper.invoke(JavaModuleWrapper.java:146)
+02-17 15:02:14.875  4792  4818 E AndroidRuntime: 	at com.facebook.jni.NativeRunnable.run(Native Method)
+02-17 15:02:14.875  4792  4818 E AndroidRuntime: 	at android.os.Handler.handleCallback(Handler.java:873)
+02-17 15:02:14.875  4792  4818 E AndroidRuntime: 	at android.os.Handler.dispatchMessage(Handler.java:99)
+02-17 15:02:14.875  4792  4818 E AndroidRuntime: 	at com.facebook.react.bridge.queue.MessageQueueThreadHandler.dispatchMessage(MessageQueueThreadHandler.java:27)
+02-17 15:02:14.875  4792  4818 E AndroidRuntime: 	at android.os.Looper.loop(Looper.java:193)
+02-17 15:02:14.875  4792  4818 E AndroidRuntime: 	at com.facebook.react.bridge.queue.MessageQueueThreadImpl.lambda$startNewBackgroundThread$2(MessageQueueThreadImpl.java:217)
+02-17 15:02:14.875  4792  4818 E AndroidRuntime: 	at com.facebook.react.bridge.queue.MessageQueueThreadImpl$$ExternalSyntheticLambda1.run(D8$$SyntheticClass:0)
+02-17 15:02:14.875  4792  4818 E AndroidRuntime: 	at java.lang.Thread.run(Thread.java:764)
+02-17 15:02:14.880  1575  3729 W ActivityManager:   Force finishing activity org.efimef.digitalid/.MainActivity
+02-17 15:02:14.931  2441  2441 W ContextImpl: Calling a method in the system process without a qualified user: android.app.ContextImpl.startService:1531 android.content.ContextWrapper.startService:664 android.content.ContextWrapper.startService:664 com.android.coreservice.CoreBroadcastReceiver.onReceive:44 android.app.ActivityThread.handleReceiver:3424 
+02-17 15:02:14.956  4792  4818 W System.err: java.lang.Exception: call killProcess callstack! pid=4792
+02-17 15:02:14.957  1575  3622 W BroadcastQueue: Background execution not allowed: receiving Intent { act=android.intent.action.DROPBOX_ENTRY_ADDED flg=0x10 (has extras) } to com.google.android.gms/.stats.service.DropBoxEntryAddedReceiver
+02-17 15:02:14.957  4792  4818 W System.err: 	at android.os.Process.killProcess(Process.java:915)
+02-17 15:02:14.957  4792  4818 W System.err: 	at com.android.internal.os.RuntimeInit$KillApplicationHandler.uncaughtException(RuntimeInit.java:157)
+02-17 15:02:14.957  4792  4818 W System.err: 	at java.lang.ThreadGroup.uncaughtException(ThreadGroup.java:1068)
+02-17 15:02:14.957  4792  4818 W System.err: 	at java.lang.ThreadGroup.uncaughtException(ThreadGroup.java:1063)
+02-17 15:02:14.957  4792  4818 W System.err: 	at java.lang.Thread.dispatchUncaughtException(Thread.java:1955)
+02-17 15:02:14.957  4792  4818 I Process : Sending signal. PID: 4792 SIG: 9
+02-17 15:02:14.958  2441  2441 W ContextImpl: Calling a method in the system process without a qualified user: android.app.ContextImpl.startService:1531 android.content.ContextWrapper.startService:664 android.content.ContextWrapper.startService:664 com.android.coreservice.CoreBroadcastReceiver.onReceive:53 android.app.ActivityThread.handleReceiver:3424 
+02-17 15:02:14.983  1575  1665 W InputDispatcher: channel '69b4a4d org.efimef.digitalid/org.efimef.digitalid.MainActivity (server)' ~ Consumer closed input channel or an error occurred.  events=0x9
+02-17 15:02:14.983  1575  1665 E InputDispatcher: channel '69b4a4d org.efimef.digitalid/org.efimef.digitalid.MainActivity (server)' ~ Channel is unrecoverably broken and will be disposed!
+02-17 15:02:14.988  1575  3617 I WindowManager: WIN DEATH: Window{69b4a4d u0 org.efimef.digitalid/org.efimef.digitalid.MainActivity}
+02-17 15:02:14.988  1575  3617 W InputDispatcher: Attempted to unregister already unregistered input channel '69b4a4d org.efimef.digitalid/org.efimef.digitalid.MainActivity (server)'
+02-17 15:02:14.988  1406  1406 I Zygote  : Process 4792 exited due to signal (9)
+02-17 15:02:15.021  1575  3729 I ActivityManager: Process org.efimef.digitalid (pid 4792) has died: vis  +99TOP 
+02-17 15:02:15.022  1575  1592 W libprocessgroup: kill(-4792, 9) failed: No such process
+02-17 15:02:15.022  1575  1592 I libprocessgroup: Successfully killed process cgroup uid 10062 pid 4792 in 0ms
+02-17 15:02:15.025  1435  1664 W SurfaceFlinger: Attempting to set client state on removed layer: org.efimef.digitalid/org.efimef.digitalid.MainActivity#0
+02-17 15:02:15.025  1435  1664 W SurfaceFlinger: Attempting to destroy on removed layer: org.efimef.digitalid/org.efimef.digitalid.MainActivity#0
+02-17 15:02:15.096  1575  1598 W ActivityManager: setHasOverlayUi called on unknown pid: 4792
+02-17 15:02:15.127  1575  1575 I FinalizerDaemon: type=1400 audit(0.0:694): avc: denied { read write } for name="fastpipe" dev="tmpfs" ino=5337 scontext=u:r:system_server:s0 tcontext=u:object_r:device:s0 tclass=chr_file permissive=1
+02-17 15:02:15.127  1575  1575 I FinalizerDaemon: type=1400 audit(0.0:694): avc: denied { open } for path="/dev/fastpipe" dev="tmpfs" ino=5337 scontext=u:r:system_server:s0 tcontext=u:object_r:device:s0 tclass=chr_file permissive=1
+02-17 15:02:15.127  1575  1575 W FinalizerDaemon: type=1300 audit(0.0:694): arch=c000003e syscall=257 success=yes exit=274 a0=ffffff9c a1=7ffff516ccaa a2=2 a3=0 items=0 ppid=1406 auid=4294967295 uid=1000 gid=1000 euid=1000 suid=1000 fsuid=1000 egid=1000 sgid=1000 fsgid=1000 tty=(none) ses=4294967295 exe="/system/bin/app_process64" subj=u:r:system_server:s0 key=(null)
+02-17 15:02:15.127  1364  1364 W auditd  : type=1327 audit(0.0:694): proctitle="system_server"
+02-17 15:02:15.127  1364  1364 W auditd  : type=1320 audit(0.0:694): 
+02-17 15:02:15.128  1575  1582 I HostConnection: HostConnection::HostConnection: pid=1575, tid=1582, this=0x7fff47c12a80
+02-17 15:02:15.135  1575  1582 I         : fastpipe: Connect success
+02-17 15:02:15.135  2441  2441 W ContextImpl: Calling a method in the system process without a qualified user: android.app.ContextImpl.sendBroadcast:1020 android.content.ContextWrapper.sendBroadcast:449 com.android.coreservice.TabManager.notifyClosing:356 com.android.coreservice.TabManager.updateInner:191 com.android.coreservice.TabManager.onUpdate:226 
+02-17 15:02:15.138  1575  1582 D HostConnection: HostRPC::connect sucess: app=system_server, pid=1575, tid=1582, this=0x7fff5336ed40
+02-17 15:02:15.142  1575  1582 D HostConnection: queryAndSetGLESMaxVersion select gles-version: 3.1 hostGLVersion:46 process:system_server
+02-17 15:02:15.143  1575  1582 W System  : A resource failed to call close. 
+02-17 15:02:15.147  1575  1582 I chatty  : uid=1000(system) FinalizerDaemon identical 31 lines
+02-17 15:02:15.147  1575  1582 W System  : A resource failed to call close. 
+02-17 15:02:15.182  2441  2441 I CoreService: notifyClosing notify tab closed taskPackageName:org.efimef.digitalid
+02-17 15:02:15.183  2441  2441 W ContextImpl: Calling a method in the system process without a qualified user: android.app.ContextImpl.startService:1531 android.content.ContextWrapper.startService:664 android.content.ContextWrapper.startService:664 com.android.coreservice.CoreBroadcastReceiver.onReceive:69 android.app.ActivityThread.handleReceiver:3424 
+02-17 15:02:15.267  2441  2441 W ContextImpl: Calling a method in the system process without a qualified user: android.app.ContextImpl.startService:1531 android.content.ContextWrapper.startService:664 android.content.ContextWrapper.startService:664 com.android.coreservice.CoreBroadcastReceiver.onReceive:53 android.app.ActivityThread.handleReceiver:3424 
+02-17 15:02:15.365  2559  2802 E EGL_adreno: tid 2802: eglSurfaceAttrib(1338): error 0x3009 (EGL_BAD_MATCH)
+02-17 15:02:15.366  2559  2802 W OpenGLRenderer: Failed to set EGL_SWAP_BEHAVIOR on surface 0xd46fb620, error=EGL_BAD_MATCH
+02-17 15:02:15.435  2559  2802 D EGL_adreno: eglMakeCurrent: 0xd46fb6e0: ver 3 1 (tinfo 0xd477f6c0)
+02-17 15:02:15.456  2441  2441 W ContextImpl: Calling a method in the system process without a qualified user: android.app.ContextImpl.startService:1531 android.content.ContextWrapper.startService:664 android.content.ContextWrapper.startService:664 com.android.coreservice.CoreBroadcastReceiver.onReceive:69 android.app.ActivityThread.handleReceiver:3424 
+02-17 15:02:15.934  2559  2802 W OpenGLRenderer: Incorrectly called buildLayer on View: ShortcutAndWidgetContainer, destroying layer...
+02-17 15:02:15.953  1575  1582 W System  : A resource failed to call close. 
+02-17 15:02:15.954  1575  1582 I chatty  : uid=1000(system) FinalizerDaemon identical 30 lines
+02-17 15:02:15.955  1575  1582 W System  : A resource failed to call close. 
+02-17 15:02:16.870  4309  4317 W System  : A resource failed to call close. 
+02-17 15:02:24.801  2725  2725 I Finsky  : [2] agac.onStartJob(3): SCH: onJobSchedulerWakeup with jobId 9008
+02-17 15:02:24.849  2725  2725 I Finsky  : [2] afuz.handleMessage(4): SCH: DeviceState: DeviceState{currentTime=1771315344844, isCharging=true, isIdle=false, netAny=true, netNotRoaming=true, netUnmetered=true, batteryPercent=100.0}
+02-17 15:02:24.857  2725  4710 I Finsky  : [218] afxj.b(5): SCH: Jobs in database: 1-1337 3-54 10-1 10-3 10-4 10-6 10-7 10-8 10-9 10-10 10-11 10-14 10-15 10-16 10-18 10-20 10-22 10-23 10-24 10-25 10-26 10-27 10-28 10-30 10-31 10-33 10-39 10-40 10-41 10-42 10-44 10-46 10-48 10-50 10-51 10-52 10-53 10-54 10-55 10-57 10-59 10-61 10-62 10-66 10-68 10-69 10-71 10-73 10-77 10-78 10-82 10-87 10-91 10-93 10-94 10-96 12-1 24-77777777 26-1414141414 31-305419896 34-43 
+02-17 15:02:24.881  2725  2725 I Finsky  : [2] afva.m(9): SCH: Running job: 12-1
+02-17 15:02:24.883  2725  2725 I Finsky  : [2] ContentSyncJob.s(1): [ContentSync] job started
+02-17 15:02:24.889  2725  2725 I Finsky  : [2] afuz.handleMessage(29): SCH: RunningQueue size: 1, PendingQueue size: 0
+02-17 15:02:24.889  2725  2725 I Finsky  : [2] afuz.handleMessage(32): SCH: Running queue: 12-1 
+02-17 15:02:24.949  2725  4750 I Finsky  : [223] hio.b(1): Completed 0 account content syncs with 0 successful.
+02-17 15:02:24.950  2725  2725 I Finsky  : [2] ContentSyncJob.a(1): [ContentSync] Installation state replication succeeded.
+02-17 15:02:24.951  2725  2725 I Finsky  : [2] afwa.n(4): SCH: jobFinished: 12-1. TimeElapsed: 69ms.
+02-17 15:02:24.951  2725  2725 I Finsky  : [2] afva.b(3): SCH: Job 12-1 finished. Not rescheduling.
+02-17 15:02:24.951  2725  2725 I Finsky  : [2] afuz.handleMessage(29): SCH: RunningQueue size: 0, PendingQueue size: 0
+02-17 15:02:24.951  2725  2725 I Finsky  : [2] afuz.handleMessage(10): SCH: Executor finished
+02-17 15:02:24.971  2725  2725 I Finsky  : [2] afxj.b(5): SCH: Jobs in database: 1-1337 3-54 10-1 10-3 10-4 10-6 10-7 10-8 10-9 10-10 10-11 10-14 10-15 10-16 10-18 10-20 10-22 10-23 10-24 10-25 10-26 10-27 10-28 10-30 10-31 10-33 10-39 10-40 10-41 10-42 10-44 10-46 10-48 10-50 10-51 10-52 10-53 10-54 10-55 10-57 10-59 10-61 10-62 10-66 10-68 10-69 10-71 10-73 10-77 10-78 10-82 10-87 10-91 10-93 10-94 10-96 24-77777777 26-1414141414 31-305419896 34-43 
+02-17 15:02:24.974  2725  2725 I Finsky  : [2] afvn.g(37): SCH: ConstraintMapping: 24-77777777,  -> L: 0ms, D: 30777428ms, C: false, I: true, N: 0
+02-17 15:02:24.974  2725  2725 I Finsky  : [2] afvn.g(37): SCH: ConstraintMapping: 1-1337, 10-1, 10-3, 10-4, 10-6, 10-7, 10-8, 10-9, 10-10, 10-11, 10-14, 10-15, 10-16, 10-18, 10-20, 10-22, 10-23, 10-24, 10-25, 10-26, 10-27, 10-28, 10-30, 10-31, 10-33, 10-39, 10-40, 10-41, 10-42, 10-44, 10-46, 10-48, 10-50, 10-51, 10-52, 10-53, 10-54, 10-55, 10-57, 10-59, 10-61, 10-62, 10-66, 10-68, 10-69, 10-71, 10-73, 10-77, 10-82, 10-87, 10-91, 10-93, 10-94, 10-96, 31-305419896,  -> L: 769277ms, D: 66278381ms, C: false, I: false, N: 1
+02-17 15:02:24.975  2725  2725 I Finsky  : [2] afvn.g(37): SCH: ConstraintMapping: 10-78,  -> L: 2117893ms, D: 84917893ms, C: false, I: true, N: 1
+02-17 15:02:24.975  2725  2725 I Finsky  : [2] afvn.g(37): SCH: ConstraintMapping: 3-54,  -> L: 0ms, D: 84876787ms, C: true, I: true, N: 1
+02-17 15:02:24.975  2725  2725 I Finsky  : [2] afvn.g(37): SCH: ConstraintMapping: 34-43,  -> L: 0ms, D: 1261603201ms, C: false, I: true, N: 2
+02-17 15:02:24.975  2725  2725 I Finsky  : [2] afvn.g(37): SCH: ConstraintMapping: 34-43,  -> L: 0ms, D: 1261603201ms, C: true, I: true, N: 2
+02-17 15:02:24.975  2725  2725 I Finsky  : [2] afvn.g(37): SCH: ConstraintMapping: 26-1414141414,  -> L: 41719010ms, D: 42619010ms, C: false, I: false, N: 0
+02-17 15:02:24.987  2725  2725 I Finsky  : [2] afvn.i(7): SCH: Cancelling existing jobscheduler jobs: 9013 9010 9000 9012 9011 9009 
+02-17 15:02:24.987  2725  2725 I Finsky  : [2] afvn.d(4): SCH: Throttling wakeup for job 9001 (expected to run in 0 ms) due to recent wakeup
+02-17 15:02:24.988  2725  2725 I Finsky  : [2] afvn.h(11): SCH: Scheduling job Id: 9001, L: 30000, D: 30777428, C: false, I: true, N: 0
+02-17 15:02:24.989  2725  2725 I Finsky  : [2] afvn.h(11): SCH: Scheduling job Id: 9002, L: 769277, D: 66278381, C: false, I: false, N: 1
+02-17 15:02:24.990  2725  2725 I Finsky  : [2] afvn.h(11): SCH: Scheduling job Id: 9003, L: 2117893, D: 84917893, C: false, I: true, N: 1
+02-17 15:02:24.991  2725  2725 I Finsky  : [2] afvn.d(4): SCH: Throttling wakeup for job 9004 (expected to run in 0 ms) due to recent wakeup
+02-17 15:02:24.991  2725  2725 I Finsky  : [2] afvn.h(11): SCH: Scheduling job Id: 9004, L: 30000, D: 84876787, C: true, I: true, N: 1
+02-17 15:02:24.992  2725  2725 I Finsky  : [2] afvn.d(4): SCH: Throttling wakeup for job 9005 (expected to run in 0 ms) due to recent wakeup
+02-17 15:02:24.992  2725  2725 I Finsky  : [2] afvn.h(11): SCH: Scheduling job Id: 9005, L: 30000, D: 1261603201, C: false, I: true, N: 2
+02-17 15:02:24.995  2725  2725 I Finsky  : [2] afvn.d(4): SCH: Throttling wakeup for job 9006 (expected to run in 0 ms) due to recent wakeup
+02-17 15:02:24.995  2725  2725 I Finsky  : [2] afvn.h(11): SCH: Scheduling job Id: 9006, L: 30000, D: 1261603201, C: true, I: true, N: 2
+02-17 15:02:24.996  2725  2725 I Finsky  : [2] afvn.h(11): SCH: Scheduling job Id: 9007, L: 41719010, D: 42619010, C: false, I: false, N: 0
+02-17 15:02:25.362  2326  2326 D BoundBrokerSvc: onUnbind: Intent { act=com.google.android.gms.measurement.START pkg=com.google.android.gms }
+02-17 15:02:25.373  4277  4277 I hci_thread: type=1400 audit(0.0:696): avc: denied { call } for scontext=u:r:bluetooth:s0 tcontext=u:r:init:s0 tclass=binder permissive=1
+02-17 15:02:25.373  4277  4277 W hci_thread: type=1300 audit(0.0:696): arch=c000003e syscall=16 success=yes exit=0 a0=44 a1=c0306201 a2=7fff5911c168 a3=1 items=0 ppid=1406 auid=4294967295 uid=1002 gid=1002 euid=1002 suid=1002 fsuid=1002 egid=1002 sgid=1002 fsgid=1002 tty=(none) ses=4294967295 exe="/system/bin/app_process64" subj=u:r:bluetooth:s0 key=(null)
+02-17 15:02:25.373  1364  1364 W auditd  : type=1327 audit(0.0:696): proctitle="com.android.bluetooth"
+02-17 15:02:25.373  1364  1364 W auditd  : type=1320 audit(0.0:696): 
+02-17 15:02:25.381  1413  1981 I dual_mode_controller: Command opcode: 0x200C, OGF: 0x0008, OCF: 0x000C
+02-17 15:02:25.381  1413  1981 I dual_mode_controller: Controller performing command: LE SetScanEnable
+02-17 15:02:25.386  1413  1981 I dual_mode_controller: Command opcode: 0x200B, OGF: 0x0008, OCF: 0x000B
+02-17 15:02:25.386  1413  1981 I dual_mode_controller: Controller performing command: LE SetScanParameters
+02-17 15:02:25.389  1413  1981 I dual_mode_controller: Command opcode: 0x200B, OGF: 0x0008, OCF: 0x000B
+02-17 15:02:25.389  1413  1981 I dual_mode_controller: Controller performing command: LE SetScanParameters
+02-17 15:02:25.390  1413  1981 I dual_mode_controller: Command opcode: 0x200C, OGF: 0x0008, OCF: 0x000C
+02-17 15:02:25.390  1413  1981 I dual_mode_controller: Controller performing command: LE SetScanEnable
+02-17 15:02:25.551  4277  4301 W BluetoothRemoteDevices: Skip name update for BE:AC:10:00:00:01
+02-17 15:02:25.551  4277  4301 W BluetoothRemoteDevices: Skip class update for BE:AC:10:00:00:01
+02-17 15:02:25.551  4277  4301 W BluetoothRemoteDevices: Skip name update for CC:1C:EB:0A:12:D1
+02-17 15:02:25.551  4277  4301 W BluetoothRemoteDevices: Skip class update for CC:1C:EB:0A:12:D1
+02-17 15:02:25.662  1575  3622 I ActivityManager: Killing 3817:com.google.process.gapps/u0a39 (adj 906): empty #17
+02-17 15:02:25.663  1575  1592 W libprocessgroup: kill(-3817, 9) failed: No such process
+02-17 15:02:25.683  1406  1406 I Zygote  : Process 3817 exited due to signal (9)
+02-17 15:02:25.710  1575  1592 W libprocessgroup: kill(-3817, 9) failed: No such process
+02-17 15:02:25.710  1575  1592 I libprocessgroup: Successfully killed process cgroup uid 10039 pid 3817 in 47ms
+02-17 15:02:25.831  1575  1582 W System  : A resource failed to call close. 
+02-17 15:02:25.832  1575  1582 I chatty  : uid=1000(system) FinalizerDaemon identical 35 lines
+02-17 15:02:25.832  1575  1582 W System  : A resource failed to call close. 
+02-17 15:02:26.479  2326  2326 D BoundBrokerSvc: onUnbind: Intent { act=com.google.android.gms.feedback.internal.IFeedbackService dat=chimera-action: cmp=com.google.android.gms/.chimera.GmsBoundBrokerService }
+02-17 15:02:26.876  2020  2020 D BoundBrokerSvc: onUnbind: Intent { act=com.google.android.gms.presencemanager.service.START dat=chimera-action: cmp=com.google.android.gms/.chimera.PersistentApiService }
+02-17 15:02:26.877  2020  2020 D BoundBrokerSvc: onUnbind: Intent { act=com.google.android.gms.presencemanager.service.INTERNAL_IDENTITY dat=chimera-action: cmp=com.google.android.gms/.chimera.PersistentApiService }
+02-17 15:02:31.267  1424  1424 I health@2.0-serv: type=1400 audit(0.0:697): avc: denied { read } for name="present" dev="sysfs" ino=6604 scontext=u:r:init:s0 tcontext=u:object_r:sysfs:s0 tclass=file permissive=1
+02-17 15:02:31.267  1424  1424 I health@2.0-serv: type=1400 audit(0.0:697): avc: denied { open } for path="/sys/devices/LNXSYSTM:00/LNXSYBUS:00/PNP0A03:00/PNP0C0A:00/power_supply/BAT0/present" dev="sysfs" ino=6604 scontext=u:r:init:s0 tcontext=u:object_r:sysfs:s0 tclass=file permissive=1
+02-17 15:02:31.267  1424  1424 W health@2.0-serv: type=1300 audit(0.0:697): arch=c000003e syscall=257 success=yes exit=9 a0=ffffff9c a1=7ffff72283f0 a2=a0000 a3=0 items=0 ppid=1 auid=4294967295 uid=1000 gid=1000 euid=1000 suid=1000 fsuid=1000 egid=1000 sgid=1000 fsgid=1000 tty=(none) ses=4294967295 exe="/system/vendor/bin/hw/android.hardware.health@2.0-service.default" subj=u:r:init:s0 key=(null)
+02-17 15:02:31.267  1364  1364 W auditd  : type=1327 audit(0.0:697): proctitle="/vendor/bin/hw/android.hardware.health@2.0-service.default"
+02-17 15:02:31.267  1364  1364 W auditd  : type=1320 audit(0.0:697): 
+02-17 15:02:31.270  1424  1424 I health@2.0-serv: type=1400 audit(0.0:698): avc: denied { call } for scontext=u:r:init:s0 tcontext=u:r:storaged:s0 tclass=binder permissive=1
+02-17 15:02:31.357  1575  1588 E memtrack: Couldn't load memtrack module
+02-17 15:02:31.357  1575  1588 W android.os.Debug: failed to get memory consumption info: -1
+02-17 15:02:40.680  1450  1450 I storaged: type=1400 audit(0.0:702): avc: denied { call } for scontext=u:r:storaged:s0 tcontext=u:r:init:s0 tclass=binder permissive=1
+02-17 15:02:40.680  1450  1450 W storaged: type=1300 audit(0.0:702): arch=c000003e syscall=16 success=yes exit=0 a0=4 a1=c0306201 a2=7ffff7338df8 a3=7ffff6e27288 items=0 ppid=1 auid=4294967295 uid=0 gid=1032 euid=0 suid=0 fsuid=0 egid=1032 sgid=1032 fsgid=1032 tty=(none) ses=4294967295 exe="/system/bin/storaged" subj=u:r:storaged:s0 key=(null)
+02-17 15:02:40.680  1364  1364 W auditd  : type=1327 audit(0.0:702): proctitle="/system/bin/storaged"
+02-17 15:02:40.680  1364  1364 W auditd  : type=1320 audit(0.0:702): 
+02-17 15:02:40.682  1450  1468 E storaged: getDiskStats failed with result NOT_SUPPORTED and size 0
+02-17 15:02:46.823  1424  1424 I health@2.0-serv: type=1400 audit(0.0:703): avc: denied { read } for scontext=u:r:init:s0 tcontext=u:r:init:s0 tclass=netlink_kobject_uevent_socket permissive=1
+02-17 15:02:46.823  1424  1424 W health@2.0-serv: type=1300 audit(0.0:703): arch=c000003e syscall=47 success=yes exit=192 a0=8 a1=7fffffffdef8 a2=0 a3=ffffffff items=0 ppid=1 auid=4294967295 uid=1000 gid=1000 euid=1000 suid=1000 fsuid=1000 egid=1000 sgid=1000 fsgid=1000 tty=(none) ses=4294967295 exe="/system/vendor/bin/hw/android.hardware.health@2.0-service.default" subj=u:r:init:s0 key=(null)
+02-17 15:02:46.823  1364  1364 W auditd  : type=1327 audit(0.0:703): proctitle="/vendor/bin/hw/android.hardware.health@2.0-service.default"
+02-17 15:02:46.823  1364  1364 W auditd  : type=1320 audit(0.0:703): 

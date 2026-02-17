@@ -61,7 +61,23 @@ export default function RegisterScreen({ onBack, onFinish }: RegisterProps) {
     }
   }, [step]);
 
-  // ... (keep existing useEffect for processing steps)
+  // --- PROCESSING SIMULATION ---
+  useEffect(() => {
+    let timer: NodeJS.Timeout;
+    if (step === 'processing_front') {
+      timer = setTimeout(() => {
+        setStep('back');
+      }, 1500); // Simulate processing delay
+    } else if (step === 'processing_back') {
+      timer = setTimeout(() => {
+        setStep('selfie');
+      }, 1500);
+    } else if (step === 'processing_selfie') {
+      // For selfie, we upload data
+      uploadDataToBackend();
+    }
+    return () => clearTimeout(timer);
+  }, [step]);
 
   // --- API CALL (FIXED: NO LOOP, LONG TIMEOUT) ---
   const uploadDataToBackend = async () => {
@@ -165,8 +181,12 @@ export default function RegisterScreen({ onBack, onFinish }: RegisterProps) {
           exif: false
         });
 
+        if (!photo || !photo.base64) {
+          throw new Error("Failed to capture image data");
+        }
+
         console.log("✅ Picture taken:", photo.uri);
-        const base64Img = `data:image/jpeg;base64,${photo?.base64}`;
+        const base64Img = `data:image/jpeg;base64,${photo.base64}`;
 
         if (step === 'front') {
           setFrontImage(base64Img);

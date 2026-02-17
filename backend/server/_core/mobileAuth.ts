@@ -300,6 +300,5 @@ export function registerMobileAuthRoutes(app: Express) {
             res.status(500).json({ error: "Internal server error" });
         }
     });
-});
 }
 
