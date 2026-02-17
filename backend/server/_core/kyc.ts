@@ -3,6 +3,14 @@ import { z } from "zod";
 import { nanoid } from "nanoid";
 import * as db from "../db";
 import { getIO } from "../websocket";
+import { ImageAnnotatorClient } from "@google-cloud/vision";
+import path from "path";
+
+// Initialize Vision Client
+// Note: We use process.cwd() to find service-account.json in the backend root
+const client = new ImageAnnotatorClient({
+  keyFilename: path.join(process.cwd(), "service-account.json"),
+});
 
 const kycSchema = z.object({
   nameKh: z.string().optional(),
@@ -16,10 +24,15 @@ const kycSchema = z.object({
   frontImage: z.string().optional(),
   backImage: z.string().optional(),
   selfieImage: z.string().optional(),
+  phoneNumber: z.string().optional(),
 });
 
-// Helper to extract data from OCR text
+/**
+ * Extracts data from the raw text returned by Google Cloud Vision
+ */
 function extractDataFromText(text: string) {
+  console.log("📝 [KYC] Raw Vision API Text:\n", text);
+
   const extracted = {
     nameEn: "",
     nameKh: "",
@@ -28,36 +41,56 @@ function extractDataFromText(text: string) {
     expiryDate: "",
   };
 
-  const lines = text.split('\n');
-
-  // Regex patterns (tuned for Cambodian ID cards based on samples)
-  const idPattern = /\b\d{9,10}\b/; // 9 or 10 digit ID
-  const datePattern = /\b\d{2}\.\d{2}\.\d{4}\b/; // DD.MM.YYYY
-  // Name usually in caps, often after "Name" or on specific lines. 
-  // Simple heuristic: Line with all caps that is NOT the header "KINGDOM OF CAMBODIA"
+  const lines = text.split('\n').map(l => l.trim()).filter(l => l.length > 0);
 
   for (const line of lines) {
-    const trimmed = line.trim();
-    if (!trimmed) continue;
-
-    // ID Number
+    // 1. ID Number (9 or 10 digits)
     if (!extracted.idNumber) {
-      const idMatch = trimmed.match(idPattern);
-      if (idMatch) extracted.idNumber = idMatch[0];
+      const cleanLine = line.replace(/\s/g, '');
+      const idMatch = cleanLine.match(/\b\d{9,10}\b/);
+      if (idMatch) {
+        extracted.idNumber = idMatch[0];
+        console.log("   -> Found ID:", extracted.idNumber);
+      }
     }
 
-    // Dates (DOB / Expiry)
-    // Usually DOB comes first, Expiry second in full text
-    const dateMatch = trimmed.match(datePattern);
-    if (dateMatch) {
-      if (!extracted.dob) extracted.dob = dateMatch[0];
-      else if (!extracted.expiryDate) extracted.expiryDate = dateMatch[0];
+    // 2. Dates (DOB / Expiry)
+    // Supports Khmer Numerals ០-៩ and Arabic digits
+    const toArabic = (str: string) => str.replace(/[\u17E0-\u17E9]/g, (d) => String(d.charCodeAt(0) - 0x17E0));
+    const datePatternMixed = /\b[\d\u17E0-\u17E9]{2}[./][\d\u17E0-\u17E9]{2}[./][\d\u17E0-\u17E9]{4}\b/g;
+
+    const dateMatches = line.match(datePatternMixed);
+    if (dateMatches) {
+      for (const dateRaw of dateMatches) {
+        const date = toArabic(dateRaw);
+        if (!extracted.dob) {
+          extracted.dob = date;
+          console.log("   -> Found DOB:", extracted.dob);
+        } else if (!extracted.expiryDate && date !== extracted.dob) {
+          extracted.expiryDate = date;
+          console.log("   -> Found Expiry:", extracted.expiryDate);
+        }
+      }
     }
 
-    // Name (English) - Heuristic: All uppercase, length > 3, not a known keyword
-    if (!extracted.nameEn && /^[A-Z\s]+$/.test(trimmed) && trimmed.length > 3) {
-      if (!trimmed.includes("KINGDOM") && !trimmed.includes("CAMBODIA") && !trimmed.includes("IDENTITY") && !trimmed.includes("CARD")) {
-        extracted.nameEn = trimmed;
+    // 3. Name (English)
+    // All caps, length > 4, no forbidden keywords
+    if (!extracted.nameEn && /^[A-Z\s]+$/.test(line) && line.length > 4) {
+      const forbidden = ["KINGDOM", "CAMBODIA", "IDENTITY", "CARD", "KHMER", "NATIONAL", "SOCIALIST", "REPULIC"];
+      const hasForbidden = forbidden.some(w => line.toUpperCase().includes(w));
+
+      if (!hasForbidden) {
+        extracted.nameEn = line.replace(/\s+/g, ' ').trim();
+        console.log("   -> Found Name (EN):", extracted.nameEn);
+      }
+    }
+
+    // 4. Name (Khmer)
+    // Basic Khmer Unicode range \u1780-\u17FF
+    if (!extracted.nameKh && /[\u1780-\u17FF]/.test(line)) {
+      if (line.length > 3 && !line.includes("ព្រះរាជាណាចក្រ") && !line.includes("អត្តសញ្ញាណប័ណ្ណ")) {
+        extracted.nameKh = line;
+        console.log("   -> Found Name (KH):", extracted.nameKh);
       }
     }
   }
@@ -66,23 +99,8 @@ function extractDataFromText(text: string) {
 }
 
 export function registerKycRoutes(app: Express) {
-  const kycSchema = z.object({
-    phoneNumber: z.string().optional(), // ✅ Add Phone Number
-    nameKh: z.string().optional(),
-    nameEn: z.string().optional(),
-    gender: z.enum(["male", "female", "other"]).optional(),
-    idNumber: z.string().optional(),
-    dob: z.string().optional(),
-    pob: z.string().optional(),
-    address: z.string().optional(),
-    expiryDate: z.string().optional(),
-    frontImage: z.string().optional(),
-    backImage: z.string().optional(),
-    selfieImage: z.string().optional(),
-  });
-
   const handler = async (req: Request, res: Response) => {
-    // Increase timeout for OCR
+    // Extend timeout for OCR processing
     req.socket.setTimeout(120000);
 
     const parsed = kycSchema.safeParse(req.body);
@@ -95,50 +113,49 @@ export function registerKycRoutes(app: Express) {
     let extractedData = {};
 
     try {
-      // PERFORM OCR if front image occurs
       if (input.frontImage && input.frontImage.startsWith("data:image")) {
-        console.log("🔍 Starting OCR on Front ID...");
+        console.log("🔍 [KYC] Executing Google Cloud Vision OCR...");
         try {
-          // Dynamic import to prevent startup crashes
-          const { createWorker } = await import("tesseract.js");
-          const worker = await createWorker('eng');
-          const ret = await worker.recognize(input.frontImage);
-          console.log("✅ OCR Text:", ret.data.text);
+          const base64Data = input.frontImage.replace(/^data:image\/\w+;base64,/, "");
+          const buffer = Buffer.from(base64Data, 'base64');
 
-          extractedData = extractDataFromText(ret.data.text);
-          console.log("✅ Extracted Data:", extractedData);
+          // Google Cloud Vision Text Detection
+          const [result] = await client.textDetection(buffer);
+          const detections = result.textAnnotations;
 
-          await worker.terminate();
+          if (detections && detections.length > 0) {
+            const fullText = detections[0].description || "";
+            extractedData = extractDataFromText(fullText);
+          } else {
+            console.log("⚠️ [KYC] Vision API detected no text.");
+          }
         } catch (ocrError) {
-          console.error("OCR Failed:", ocrError);
+          console.error("❌ [KYC] Vision API Error:", ocrError);
         }
       }
-
-      // Use OCR data if input is missing, or prefer input if user edited it (logic depends on flow)
-      // Here we prioritize what we extracted, but allow overrides if valid input was sent (handled by frontend usually sending empty or user-edited)
-      // Actually, frontend sends what it has.
 
       const finalNameEn = input.nameEn || (extractedData as any).nameEn;
       const finalIdNumber = input.idNumber || (extractedData as any).idNumber;
 
+      // Unique OpenId for tracking
       const openId = `user_${nanoid(10)}`;
 
       await db.upsertUser({
         openId: openId,
         name: finalNameEn || "New User",
         email: `temp_${nanoid(5)}@digitalid.local`,
-        phoneNumber: input.phoneNumber, // ✅ Save Phone Number
+        phoneNumber: input.phoneNumber,
       });
+
       const createdUser = await db.getUserByOpenId(openId);
       if (!createdUser) {
-        res.status(500).json({ success: false, error: "Database Error" });
+        res.status(500).json({ success: false, error: "User Creation Failed" });
         return;
       }
 
-      const newUserId = createdUser.id;
-
+      const userId = createdUser.id;
       const updateData: any = {
-        nameKhmer: input.nameKh,
+        nameKhmer: (extractedData as any).nameKh || input.nameKh,
         nameEnglish: finalNameEn,
         gender: input.gender,
         address: input.address,
@@ -147,48 +164,48 @@ export function registerKycRoutes(app: Express) {
         role: "user",
       };
 
-      // Only update nationalId if we actually have one (to avoid unique constraint errors on empty strings)
       if (finalIdNumber) {
         updateData.nationalId = finalIdNumber;
       }
 
-      await db.updateUser(newUserId, updateData);
+      await db.updateUser(userId, updateData);
 
+      // Store file references (base64 for now as per current schema)
       await db.createKycDocument({
-        userId: newUserId,
+        userId: userId,
         nidFrontUrl: input.frontImage || "",
         nidBackUrl: input.backImage || "",
         selfieUrl: input.selfieImage || "",
       });
 
       await db.createActivityLog({
-        userId: newUserId,
+        userId: userId,
         username: finalNameEn || "New Applicant",
-        action: "Submitted KYC Registration",
+        action: "KYC Submission",
         actionType: "kyc_submit",
-        description: "New user application via Mobile App.",
+        description: "Registration via Mobile App.",
       });
 
+      // Notify WebSocket clients (Admin Dashboard)
       try {
         const io = getIO();
         io.to("admins").emit("kyc-submission", {
-          userId: newUserId,
+          userId: userId,
           userName: finalNameEn,
           timestamp: new Date(),
         });
-      } catch (e) {
-        console.log("WebSocket notification warning:", e);
+      } catch (wsError) {
+        console.warn("⚠️ WebSocket notification failed.");
       }
 
-      // Return the extracted data to the frontend so it can populate the Review/Confirmation screen!
       res.json({
         success: true,
-        userId: newUserId,
+        userId: userId,
         extractedData: extractedData
       });
 
     } catch (error) {
-      console.error("KYC Submit Error:", error);
+      console.error("❌ [KYC] Fatal Submit Error:", error);
       res.status(500).json({ success: false, error: String(error) });
     }
   };
