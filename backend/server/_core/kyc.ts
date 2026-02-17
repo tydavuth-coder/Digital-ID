@@ -38,6 +38,8 @@ function extractDataFromText(text: string) {
     nameKh: "",
     idNumber: "",
     dob: "",
+    pob: "",
+    address: "",
     expiryDate: "",
   };
 
@@ -63,18 +65,26 @@ function extractDataFromText(text: string) {
     if (dateMatches) {
       for (const dateRaw of dateMatches) {
         const date = toArabic(dateRaw);
-        if (!extracted.dob) {
+        // Simple heuristic: earlier dates are likely DOB, later are expiry
+        // Or if we see keywords in the line
+        if (line.includes("ថ្ងៃខែឆ្នាំកំណើត") || line.toUpperCase().includes("BIRTH")) {
           extracted.dob = date;
-          console.log("   -> Found DOB:", extracted.dob);
-        } else if (!extracted.expiryDate && date !== extracted.dob) {
+          console.log("   -> Found DOB (via Keyword):", extracted.dob);
+        } else if (line.includes("សុពលភាពដល់") || line.toUpperCase().includes("EXPIRY") || line.toUpperCase().includes("UNTIL")) {
           extracted.expiryDate = date;
-          console.log("   -> Found Expiry:", extracted.expiryDate);
+          console.log("   -> Found Expiry (via Keyword):", extracted.expiryDate);
+        } else {
+          // Default fallback
+          if (!extracted.dob) {
+            extracted.dob = date;
+          } else if (!extracted.expiryDate) {
+            extracted.expiryDate = date;
+          }
         }
       }
     }
 
     // 3. Name (English)
-    // All caps, length > 4, no forbidden keywords
     if (!extracted.nameEn && /^[A-Z\s]+$/.test(line) && line.length > 4) {
       const forbidden = ["KINGDOM", "CAMBODIA", "IDENTITY", "CARD", "KHMER", "NATIONAL", "SOCIALIST", "REPULIC"];
       const hasForbidden = forbidden.some(w => line.toUpperCase().includes(w));
@@ -86,12 +96,30 @@ function extractDataFromText(text: string) {
     }
 
     // 4. Name (Khmer)
-    // Basic Khmer Unicode range \u1780-\u17FF
     if (!extracted.nameKh && /[\u1780-\u17FF]/.test(line)) {
       if (line.length > 3 && !line.includes("ព្រះរាជាណាចក្រ") && !line.includes("អត្តសញ្ញាណប័ណ្ណ")) {
-        extracted.nameKh = line;
-        console.log("   -> Found Name (KH):", extracted.nameKh);
+        // Remove prefixes like "គោត្តនាមនិងនាម:" or "នាមត្រកូល និងនាម"
+        let cleanKh = line.replace(/គោត្តនាមនិងនាម\s*(:|-|)?\s*/g, '');
+        cleanKh = cleanKh.replace(/នាមត្រកូល\s*និង\s*នាម\s*(:|-|)?\s*/g, '');
+        cleanKh = cleanKh.trim();
+
+        if (cleanKh.length > 0) {
+          extracted.nameKh = cleanKh;
+          console.log("   -> Found Name (KH):", extracted.nameKh);
+        }
       }
+    }
+
+    // 5. Place of Birth (POB)
+    if (!extracted.pob && (line.includes("ទីកន្លែងកំណើត") || line.toUpperCase().includes("PLACE OF BIRTH"))) {
+      extracted.pob = line.replace(/.*(ទីកន្លែងកំណើត|PLACE OF BIRTH)\s*(:|-|)?\s*/i, '').trim();
+      console.log("   -> Found POB:", extracted.pob);
+    }
+
+    // 6. Address
+    if (!extracted.address && (line.includes("អាសយដ្ឋាន") || line.toUpperCase().includes("ADDRESS"))) {
+      extracted.address = line.replace(/.*(អាសយដ្ឋាន|ADDRESS)\s*(:|-|)?\s*/i, '').trim();
+      console.log("   -> Found Address:", extracted.address);
     }
   }
 
@@ -158,7 +186,9 @@ export function registerKycRoutes(app: Express) {
         nameKhmer: (extractedData as any).nameKh || input.nameKh,
         nameEnglish: finalNameEn,
         gender: input.gender,
-        address: input.address,
+        dob: (extractedData as any).dob || input.dob,
+        pob: (extractedData as any).pob || input.pob,
+        address: (extractedData as any).address || input.address,
         status: "pending",
         kycStatus: "pending",
         role: "user",
@@ -166,6 +196,17 @@ export function registerKycRoutes(app: Express) {
 
       if (finalIdNumber) {
         updateData.nationalId = finalIdNumber;
+      }
+
+      const finalExpiry = (extractedData as any).expiryDate || input.expiryDate;
+      if (finalExpiry) {
+        // Convert to Date object for timestamp column if possible, otherwise store as is if schema allows
+        // Here we attempt to parse DD.MM.YYYY
+        const parts = finalExpiry.split(/[./]/);
+        if (parts.length === 3) {
+          const d = new Date(parseInt(parts[2]), parseInt(parts[1]) - 1, parseInt(parts[0]));
+          updateData.idExpiryDate = d;
+        }
       }
 
       await db.updateUser(userId, updateData);

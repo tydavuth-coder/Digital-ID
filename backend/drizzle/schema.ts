@@ -19,6 +19,8 @@ export const users = mysqlTable("users", {
   username: varchar("username", { length: 64 }).unique(),
   phoneNumber: varchar("phoneNumber", { length: 20 }),
   gender: mysqlEnum("gender", ["male", "female", "other"]),
+  dob: text("dob"),
+  pob: text("pob"),
   address: text("address"),
   photoUrl: text("photoUrl"),
   status: mysqlEnum("status", ["active", "pending", "blocked"]).default("pending").notNull(),
