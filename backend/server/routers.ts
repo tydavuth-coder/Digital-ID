@@ -353,9 +353,28 @@ export const appRouter = router({
 
     // ✅ TELEGRAM LINKING
     telegram: router({
+      // Protected: Link existing account
       generateLink: protectedProcedure.mutation(async ({ ctx }) => {
         const link = await generateTelegramLinkToken(ctx.user.id);
         return { success: true, link };
+      }),
+
+      // Public: Link during registration
+      generateRegistrationLink: publicProcedure.input(z.object({
+        sessionId: z.string(),
+      })).mutation(async ({ input }) => {
+        const link = await generateRegistrationLink(input.sessionId);
+        return { success: true, link };
+      }),
+
+      checkRegistrationStatus: publicProcedure.input(z.object({
+        sessionId: z.string(),
+      })).mutation(async ({ input }) => {
+        const chatId = checkRegistrationStatus(input.sessionId);
+        if (chatId) {
+          return { success: true, chatId };
+        }
+        return { success: false };
       }),
     }),
   }),
