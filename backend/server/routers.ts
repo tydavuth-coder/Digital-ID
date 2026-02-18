@@ -357,6 +357,20 @@ export const appRouter = router({
         const link = await generateTelegramLinkToken(ctx.user.id);
         return { success: true, link };
       }),
+
+      generateRegistrationLink: publicProcedure.input(z.object({
+        sessionId: z.string()
+      })).mutation(async ({ input }) => {
+        const link = await generateRegistrationLink(input.sessionId);
+        return { success: true, link };
+      }),
+
+      checkRegistrationStatus: publicProcedure.input(z.object({
+        sessionId: z.string()
+      })).mutation(async ({ input }) => {
+        const chatId = checkRegistrationStatus(input.sessionId);
+        return { success: true, chatId };
+      }),
     }),
   }),
 
