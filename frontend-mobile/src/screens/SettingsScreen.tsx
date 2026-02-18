@@ -1,9 +1,11 @@
 import React, { useState } from 'react';
-import { 
-  StyleSheet, Text, View, TouchableOpacity, SafeAreaView, 
-  StatusBar, ScrollView, Platform, Linking, Image 
+import {
+  StyleSheet, Text, View, TouchableOpacity, SafeAreaView,
+  StatusBar, ScrollView, Platform, Linking, Image
 } from 'react-native';
-import { Ionicons, MaterialIcons, MaterialCommunityIcons } from '@expo/vector-icons';
+import { Ionicons, MaterialIcons, MaterialCommunityIcons, FontAwesome5 } from '@expo/vector-icons';
+import { api } from '../api/client';
+import { generateTelegramLink } from '../api/auth';
 
 // --- TRANSLATIONS ---
 type Language = 'en' | 'km';
@@ -58,6 +60,32 @@ interface SettingsProps {
 export default function SettingsScreen({ onBack, isAuthenticated = true }: SettingsProps) {
   const [lang, setLang] = useState<Language>('en'); // Default 'en'
   const [currentPage, setCurrentPage] = useState<Page>('main');
+  const [telegramConnected, setTelegramConnected] = useState(false);
+  const [loadingTelegram, setLoadingTelegram] = useState(false);
+
+  React.useEffect(() => {
+    if (isAuthenticated) {
+      api.get('/trpc/auth.me').then(res => {
+        if (res.data?.result?.data?.telegramChatId) {
+          setTelegramConnected(true);
+        }
+      }).catch(err => console.log("Failed to fetch profile", err));
+    }
+  }, [isAuthenticated]);
+
+  const handleConnectTelegram = async () => {
+    if (telegramConnected) return;
+    setLoadingTelegram(true);
+    try {
+      const link = await generateTelegramLink();
+      Linking.openURL(link);
+    } catch (e) {
+      console.error("Failed to generate link", e);
+      alert("Failed to connect Telegram");
+    } finally {
+      setLoadingTelegram(false);
+    }
+  };
 
   const t = translations[lang];
   const isKhmer = lang === 'km';
@@ -68,24 +96,24 @@ export default function SettingsScreen({ onBack, isAuthenticated = true }: Setti
     <View style={styles.subPageContainer}>
       <Text style={styles.sectionHeader}>{isKhmer ? 'ជ្រើសរើសភាសា' : 'Select Language'}</Text>
       <View style={styles.card}>
-        <TouchableOpacity 
-          style={[styles.menuItem, {borderBottomWidth: 1, borderBottomColor: '#f1f5f9'}]} 
+        <TouchableOpacity
+          style={[styles.menuItem, { borderBottomWidth: 1, borderBottomColor: '#f1f5f9' }]}
           onPress={() => { setLang('en'); setCurrentPage('main'); }}
         >
-          <View style={{flexDirection: 'row', alignItems: 'center', gap: 12}}>
+          <View style={{ flexDirection: 'row', alignItems: 'center', gap: 12 }}>
             <Image source={{ uri: 'https://flagcdn.com/w40/gb.png' }} style={styles.flag} />
             <Text style={styles.menuText}>English</Text>
           </View>
           {lang === 'en' && <Ionicons name="checkmark" size={24} color="#2563EB" />}
         </TouchableOpacity>
 
-        <TouchableOpacity 
-          style={styles.menuItem} 
+        <TouchableOpacity
+          style={styles.menuItem}
           onPress={() => { setLang('km'); setCurrentPage('main'); }}
         >
-          <View style={{flexDirection: 'row', alignItems: 'center', gap: 12}}>
+          <View style={{ flexDirection: 'row', alignItems: 'center', gap: 12 }}>
             <Image source={{ uri: 'https://flagcdn.com/w40/kh.png' }} style={styles.flag} />
-            <Text style={[styles.menuText, {fontFamily: Platform.OS === 'ios' ? 'Khmer Sangam MN' : 'serif'}]}>ខ្មែរ</Text>
+            <Text style={[styles.menuText, { fontFamily: Platform.OS === 'ios' ? 'Khmer Sangam MN' : 'serif' }]}>ខ្មែរ</Text>
           </View>
           {lang === 'km' && <Ionicons name="checkmark" size={24} color="#2563EB" />}
         </TouchableOpacity>
@@ -117,9 +145,9 @@ export default function SettingsScreen({ onBack, isAuthenticated = true }: Setti
     <ScrollView style={styles.subPageContainer}>
       <Text style={styles.sectionHeader}>{t.contactSupport}</Text>
       <View style={styles.card}>
-        <TouchableOpacity style={[styles.menuItem, {borderBottomWidth: 1, borderBottomColor: '#f1f5f9'}]} onPress={() => Linking.openURL('tel:010284782')}>
-          <View style={{flexDirection: 'row', alignItems: 'center', gap: 15}}>
-            <View style={[styles.iconCircle, {backgroundColor: '#dcfce7'}]}>
+        <TouchableOpacity style={[styles.menuItem, { borderBottomWidth: 1, borderBottomColor: '#f1f5f9' }]} onPress={() => Linking.openURL('tel:010284782')}>
+          <View style={{ flexDirection: 'row', alignItems: 'center', gap: 15 }}>
+            <View style={[styles.iconCircle, { backgroundColor: '#dcfce7' }]}>
               <Ionicons name="call" size={20} color="#16a34a" />
             </View>
             <View>
@@ -129,8 +157,8 @@ export default function SettingsScreen({ onBack, isAuthenticated = true }: Setti
           </View>
         </TouchableOpacity>
         <TouchableOpacity style={styles.menuItem} onPress={() => Linking.openURL('mailto:digitalid@efi.mef.gov.kh')}>
-          <View style={{flexDirection: 'row', alignItems: 'center', gap: 15}}>
-            <View style={[styles.iconCircle, {backgroundColor: '#dbeafe'}]}>
+          <View style={{ flexDirection: 'row', alignItems: 'center', gap: 15 }}>
+            <View style={[styles.iconCircle, { backgroundColor: '#dbeafe' }]}>
               <Ionicons name="mail" size={20} color="#2563eb" />
             </View>
             <View>
@@ -141,14 +169,14 @@ export default function SettingsScreen({ onBack, isAuthenticated = true }: Setti
         </TouchableOpacity>
       </View>
 
-      <Text style={[styles.sectionHeader, {marginTop: 20}]}>{t.faq}</Text>
+      <Text style={[styles.sectionHeader, { marginTop: 20 }]}>{t.faq}</Text>
       <View style={styles.card}>
         <View style={styles.cardContent}>
           <Text style={styles.cardTitle}>{lang === 'km' ? 'តើខ្ញុំអាចប្តូរលេខកូដ PIN យ៉ាងដូចម្តេច?' : 'How do I reset my PIN?'}</Text>
           <Text style={styles.cardBody}>
-            {lang === 'km' 
-                ? 'អ្នកអាចចូលទៅកាន់ "សុវត្ថិភាព" នៅក្នុងផ្ទាំងគ្រប់គ្រង ហើយជ្រើសរើស "ផ្លាស់ប្តូរលេខ PIN" ។' 
-                : 'You can go to "Security" in the dashboard and select "Change PIN".'}
+            {lang === 'km'
+              ? 'អ្នកអាចចូលទៅកាន់ "សុវត្ថិភាព" នៅក្នុងផ្ទាំងគ្រប់គ្រង ហើយជ្រើសរើស "ផ្លាស់ប្តូរលេខ PIN" ។'
+              : 'You can go to "Security" in the dashboard and select "Change PIN".'}
           </Text>
         </View>
       </View>
@@ -156,35 +184,35 @@ export default function SettingsScreen({ onBack, isAuthenticated = true }: Setti
   );
 
   const renderAboutPage = () => (
-    <View style={[styles.subPageContainer, {alignItems: 'center', paddingTop: 40}]}>
+    <View style={[styles.subPageContainer, { alignItems: 'center', paddingTop: 40 }]}>
       <View style={styles.logoBox}>
         <Ionicons name="finger-print" size={48} color="#2563EB" />
       </View>
       <Text style={styles.appName}>Digital ID</Text>
       <Text style={styles.version}>{t.version}</Text>
 
-      <View style={[styles.card, {width: '100%', marginTop: 30}]}>
-        <View style={[styles.menuItem, {borderBottomWidth: 1, borderBottomColor: '#f1f5f9'}]}>
+      <View style={[styles.card, { width: '100%', marginTop: 30 }]}>
+        <View style={[styles.menuItem, { borderBottomWidth: 1, borderBottomColor: '#f1f5f9' }]}>
           <Text style={styles.subText}>Developer</Text>
           <Text style={styles.menuText}>Digital Learning Center</Text>
         </View>
-        <View style={[styles.menuItem, {borderBottomWidth: 1, borderBottomColor: '#f1f5f9'}]}>
+        <View style={[styles.menuItem, { borderBottomWidth: 1, borderBottomColor: '#f1f5f9' }]}>
           <Text style={styles.subText}>Website</Text>
-          <Text style={[styles.menuText, {color: '#2563EB'}]}>dlc-efi.mef.gov.kh</Text>
+          <Text style={[styles.menuText, { color: '#2563EB' }]}>dlc-efi.mef.gov.kh</Text>
         </View>
         <View style={styles.menuItem}>
           <Text style={styles.subText}>License</Text>
           <Text style={styles.menuText}>Open Source (MIT)</Text>
         </View>
       </View>
-      
+
       <Text style={styles.footerText}>{t.footer}</Text>
     </View>
   );
 
   // --- NAVIGATION HANDLER ---
   const getPageTitle = () => {
-    switch(currentPage) {
+    switch (currentPage) {
       case 'language': return t.language;
       case 'terms': return t.termsOfUse;
       case 'privacy': return t.privacyPolicy;
@@ -205,32 +233,56 @@ export default function SettingsScreen({ onBack, isAuthenticated = true }: Setti
   return (
     <View style={styles.container}>
       <SafeAreaView style={styles.safeArea}>
-        
+
         {/* Header */}
         <View style={styles.header}>
           <TouchableOpacity onPress={handleHeaderBack} style={styles.backBtn}>
             <Ionicons name="arrow-back" size={24} color="#1e293b" />
           </TouchableOpacity>
           <Text style={styles.headerTitle}>{getPageTitle()}</Text>
-          <View style={{width: 40}} /> 
+          <View style={{ width: 40 }} />
         </View>
 
         {/* CONTENT SWITCHER */}
         <View style={styles.content}>
           {currentPage === 'main' ? (
             <ScrollView showsVerticalScrollIndicator={false}>
-              
+
               {/* Account Section (Only if Authenticated) */}
               {isAuthenticated && (
                 <>
                   <Text style={styles.sectionHeader}>{t.account}</Text>
                   <View style={styles.card}>
                     <TouchableOpacity style={styles.menuItem} onPress={() => Alert.alert("Coming Soon", "Security Center")}>
-                      <View style={{flexDirection: 'row', alignItems: 'center', gap: 12}}>
+                      <View style={{ flexDirection: 'row', alignItems: 'center', gap: 12 }}>
                         <MaterialIcons name="security" size={22} color="#2563EB" />
                         <Text style={styles.menuText}>{t.securityCenter}</Text>
                       </View>
                       <Ionicons name="chevron-forward" size={20} color="#94a3b8" />
+                    </TouchableOpacity>
+
+                    <View style={{ height: 1, backgroundColor: '#f1f5f9' }} />
+
+                    <TouchableOpacity style={styles.menuItem} onPress={handleConnectTelegram}>
+                      <View style={{ flexDirection: 'row', alignItems: 'center', gap: 12 }}>
+                        <FontAwesome5 name="telegram" size={20} color={telegramConnected ? "#16a34a" : "#2563EB"} />
+                        <View>
+                          <Text style={styles.menuText}>Telegram</Text>
+                          <Text style={[styles.subText, telegramConnected && { color: '#16a34a' }]}>
+                            {telegramConnected ? 'Connected' : 'Not Connected'}
+                          </Text>
+                        </View>
+                      </View>
+                      {loadingTelegram ? (
+                        <ActivityIndicator size="small" color="#2563EB" />
+                      ) : telegramConnected ? (
+                        <Ionicons name="checkmark-circle" size={22} color="#16a34a" />
+                      ) : (
+                        <View style={{ flexDirection: 'row', alignItems: 'center' }}>
+                          <Text style={{ color: '#2563EB', fontSize: 13, fontWeight: '600', marginRight: 5 }}>Connect</Text>
+                          <Ionicons name="chevron-forward" size={20} color="#94a3b8" />
+                        </View>
+                      )}
                     </TouchableOpacity>
                   </View>
                 </>
@@ -240,11 +292,11 @@ export default function SettingsScreen({ onBack, isAuthenticated = true }: Setti
               <Text style={styles.sectionHeader}>{t.preferences}</Text>
               <View style={styles.card}>
                 <TouchableOpacity style={styles.menuItem} onPress={() => setCurrentPage('language')}>
-                  <View style={{flexDirection: 'row', alignItems: 'center', gap: 12}}>
+                  <View style={{ flexDirection: 'row', alignItems: 'center', gap: 12 }}>
                     <MaterialIcons name="translate" size={22} color="#2563EB" />
                     <View>
-                        <Text style={styles.menuText}>{t.language}</Text>
-                        <Text style={styles.subText}>{lang === 'en' ? 'English' : 'ខ្មែរ'}</Text>
+                      <Text style={styles.menuText}>{t.language}</Text>
+                      <Text style={styles.subText}>{lang === 'en' ? 'English' : 'ខ្មែរ'}</Text>
                     </View>
                   </View>
                   <Ionicons name="chevron-forward" size={20} color="#94a3b8" />
@@ -254,15 +306,15 @@ export default function SettingsScreen({ onBack, isAuthenticated = true }: Setti
               {/* Legal */}
               <Text style={styles.sectionHeader}>{t.legalPolicies}</Text>
               <View style={styles.card}>
-                <TouchableOpacity style={[styles.menuItem, {borderBottomWidth: 1, borderBottomColor: '#f1f5f9'}]} onPress={() => setCurrentPage('terms')}>
-                  <View style={{flexDirection: 'row', alignItems: 'center', gap: 12}}>
+                <TouchableOpacity style={[styles.menuItem, { borderBottomWidth: 1, borderBottomColor: '#f1f5f9' }]} onPress={() => setCurrentPage('terms')}>
+                  <View style={{ flexDirection: 'row', alignItems: 'center', gap: 12 }}>
                     <MaterialIcons name="description" size={22} color="#2563EB" />
                     <Text style={styles.menuText}>{t.termsOfUse}</Text>
                   </View>
                   <Ionicons name="chevron-forward" size={20} color="#94a3b8" />
                 </TouchableOpacity>
                 <TouchableOpacity style={styles.menuItem} onPress={() => setCurrentPage('privacy')}>
-                  <View style={{flexDirection: 'row', alignItems: 'center', gap: 12}}>
+                  <View style={{ flexDirection: 'row', alignItems: 'center', gap: 12 }}>
                     <MaterialIcons name="privacy-tip" size={22} color="#2563EB" />
                     <Text style={styles.menuText}>{t.privacyPolicy}</Text>
                   </View>
@@ -273,39 +325,39 @@ export default function SettingsScreen({ onBack, isAuthenticated = true }: Setti
               {/* Help */}
               <Text style={styles.sectionHeader}>{t.helpAndSupport}</Text>
               <View style={styles.card}>
-                <TouchableOpacity style={[styles.menuItem, {borderBottomWidth: 1, borderBottomColor: '#f1f5f9'}]} onPress={() => setCurrentPage('help')}>
-                  <View style={{flexDirection: 'row', alignItems: 'center', gap: 12}}>
+                <TouchableOpacity style={[styles.menuItem, { borderBottomWidth: 1, borderBottomColor: '#f1f5f9' }]} onPress={() => setCurrentPage('help')}>
+                  <View style={{ flexDirection: 'row', alignItems: 'center', gap: 12 }}>
                     <MaterialIcons name="help-outline" size={22} color="#2563EB" />
                     <Text style={styles.menuText}>{t.help}</Text>
                   </View>
                   <Ionicons name="chevron-forward" size={20} color="#94a3b8" />
                 </TouchableOpacity>
                 <TouchableOpacity style={styles.menuItem} onPress={() => setCurrentPage('about')}>
-                  <View style={{flexDirection: 'row', alignItems: 'center', gap: 12}}>
+                  <View style={{ flexDirection: 'row', alignItems: 'center', gap: 12 }}>
                     <MaterialIcons name="info-outline" size={22} color="#2563EB" />
                     <View>
-                        <Text style={styles.menuText}>{t.aboutUs}</Text>
-                        <Text style={styles.subText}>{t.version}</Text>
+                      <Text style={styles.menuText}>{t.aboutUs}</Text>
+                      <Text style={styles.subText}>{t.version}</Text>
                     </View>
                   </View>
                   <Ionicons name="chevron-forward" size={20} color="#94a3b8" />
                 </TouchableOpacity>
               </View>
 
-              <View style={{height: 50}} />
+              <View style={{ height: 50 }} />
               <Text style={styles.footerText}>Digital ID</Text>
-              <Text style={[styles.footerText, {fontSize: 10, marginTop: 2}]}>{t.footer}</Text>
-              <View style={{height: 50}} />
+              <Text style={[styles.footerText, { fontSize: 10, marginTop: 2 }]}>{t.footer}</Text>
+              <View style={{ height: 50 }} />
 
             </ScrollView>
           ) : (
             // Render Sub-Pages
-            <View style={{flex: 1}}>
-                {currentPage === 'language' && renderLanguagePage()}
-                {currentPage === 'terms' && renderTermsPage()}
-                {currentPage === 'privacy' && renderTermsPage()} {/* Reusing Terms UI for Demo */}
-                {currentPage === 'help' && renderHelpPage()}
-                {currentPage === 'about' && renderAboutPage()}
+            <View style={{ flex: 1 }}>
+              {currentPage === 'language' && renderLanguagePage()}
+              {currentPage === 'terms' && renderTermsPage()}
+              {currentPage === 'privacy' && renderTermsPage()} {/* Reusing Terms UI for Demo */}
+              {currentPage === 'help' && renderHelpPage()}
+              {currentPage === 'about' && renderAboutPage()}
             </View>
           )}
         </View>
@@ -318,7 +370,7 @@ export default function SettingsScreen({ onBack, isAuthenticated = true }: Setti
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: '#F8FAFC' },
   safeArea: { flex: 1, paddingTop: Platform.OS === 'android' ? 40 : 0 },
-  
+
   // Header
   header: {
     flexDirection: 'row',
@@ -330,8 +382,8 @@ const styles = StyleSheet.create({
     borderBottomColor: '#E2E8F0',
     backgroundColor: '#fff',
   },
-  backBtn: { 
-    width: 40, height: 40, borderRadius: 20, 
+  backBtn: {
+    width: 40, height: 40, borderRadius: 20,
     justifyContent: 'center', alignItems: 'center',
     backgroundColor: '#F1F5F9'
   },
@@ -359,7 +411,7 @@ const styles = StyleSheet.create({
   },
   menuText: { fontSize: 16, fontWeight: '500', color: '#0F172A' },
   subText: { fontSize: 12, color: '#64748B', marginTop: 2 },
-  
+
   // Icons
   flag: { width: 24, height: 16, borderRadius: 2 },
   iconCircle: { width: 36, height: 36, borderRadius: 18, justifyContent: 'center', alignItems: 'center' },

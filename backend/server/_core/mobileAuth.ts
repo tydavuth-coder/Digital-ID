@@ -5,6 +5,7 @@ import * as db from "../db";
 import { sdk } from "./sdk";
 import { COOKIE_NAME, ONE_YEAR_MS } from "@shared/const";
 import { getSessionCookieOptions } from "./cookies";
+import { generateTelegramLinkToken } from "./telegram";
 
 const loginSchema = z.object({
     phone: z.string(),
@@ -297,6 +298,40 @@ export function registerMobileAuthRoutes(app: Express) {
 
         } catch (error) {
             console.error("[MobileAuth] QR Auth failed:", error);
+            res.status(500).json({ error: "Internal server error" });
+        }
+    });
+
+
+    // TELEGRAM LINKING
+    app.post("/api/auth/telegram/link", async (req: Request, res: Response) => {
+        try {
+            // Verify Session
+            const authHeader = req.headers.authorization;
+            const token = authHeader?.startsWith("Bearer ") ? authHeader.split(" ")[1] : null;
+
+            if (!token) {
+                res.status(401).json({ error: "Missing session token" });
+                return;
+            }
+
+            const session = await sdk.verifySession(token);
+            if (!session) {
+                res.status(401).json({ error: "Invalid session token" });
+                return;
+            }
+
+            const user = await db.getUserByOpenId(session.openId);
+            if (!user) {
+                res.status(404).json({ error: "User not found" });
+                return;
+            }
+
+            const link = await generateTelegramLinkToken(user.id);
+            res.json({ success: true, link });
+
+        } catch (error) {
+            console.error("[Telegram] Generate link failed:", error);
             res.status(500).json({ error: "Internal server error" });
         }
     });

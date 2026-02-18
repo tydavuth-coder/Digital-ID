@@ -9,6 +9,7 @@ import { registerAuditExportRoutes } from "./auditExport";
 import { registerKycRoutes } from "./kyc";
 import { registerMobileAuthRoutes } from "./mobileAuth";
 import { registerRecoveryRoutes } from "./recovery"; // ✅ Import Recovery
+import { handleTelegramWebhook } from "./telegram";
 import { appRouter } from "../routers";
 import { createContext } from "./context";
 import { serveStatic, setupVite } from "./vite";
@@ -79,6 +80,17 @@ async function startServer() {
   registerKycRoutes(app);
   registerMobileAuthRoutes(app);
   registerRecoveryRoutes(app); // ✅ Register Recovery Routes
+
+  // ✅ Telegram Webhook
+  app.post("/api/webhooks/telegram", async (req, res) => {
+    try {
+      await handleTelegramWebhook(req.body);
+      res.json({ success: true });
+    } catch (e) {
+      console.error("Telegram Webhook Error:", e);
+      res.status(500).json({ error: "Internal Server Error" });
+    }
+  });
 
   registerAuditExportRoutes(app);
   // tRPC API

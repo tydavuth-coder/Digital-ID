@@ -18,7 +18,11 @@ import {
 import { generatePDFReport, type ReportData } from "./reports";
 // ✅ IMPORT WEBSOCKET FUNCTIONS
 import { emitDashboardLoginSuccess, getIO } from "./websocket";
-import { sendTelegramMessage } from "./_core/telegram";
+import {
+  generateTelegramLinkToken,
+  generateRegistrationLink,
+  checkRegistrationStatus
+} from "./_core/telegram";
 import { sdk } from "./_core/sdk";
 
 const ONE_YEAR_MS = 365 * 24 * 60 * 60 * 1000;
@@ -128,6 +132,7 @@ export const appRouter = router({
       frontImage: z.string().optional(),
       backImage: z.string().optional(),
       selfieImage: z.string().optional(),
+      telegramChatId: z.string().optional(),
     })).mutation(async ({ input }) => {
       try {
         const openId = `user_${nanoid(10)}`;
@@ -137,7 +142,8 @@ export const appRouter = router({
           openId: openId,
           name: input.nameEn,
           phoneNumber: input.phoneNumber, // ✅ Save Phone Number
-          email: `temp_${nanoid(5)}@digitalid.local`
+          email: `temp_${nanoid(5)}@digitalid.local`,
+          telegramChatId: input.telegramChatId // ✅ Save Telegram Chat ID
         });
 
         // 2. Update Details
@@ -342,6 +348,14 @@ export const appRouter = router({
           accessToken: sessionToken,
           refreshToken: nanoid(32)
         };
+      }),
+    }),
+
+    // ✅ TELEGRAM LINKING
+    telegram: router({
+      generateLink: protectedProcedure.mutation(async ({ ctx }) => {
+        const link = await generateTelegramLinkToken(ctx.user.id);
+        return { success: true, link };
       }),
     }),
   }),

@@ -1,18 +1,20 @@
 import React, { useState, useRef, useEffect } from 'react';
 import {
   StyleSheet, Text, View, TouchableOpacity, SafeAreaView,
-  StatusBar, Dimensions, Platform, ActivityIndicator, Switch, Alert, TextInput
+  StatusBar, Dimensions, Platform, ActivityIndicator, Switch, Alert, TextInput, Linking
 } from 'react-native';
 import { CameraView, CameraType, useCameraPermissions } from 'expo-camera';
 import { Ionicons, MaterialIcons, MaterialCommunityIcons } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';
 import axios from 'axios';
 import { api, getApiBaseUrls } from '../api/client';
+import { nanoid } from 'nanoid/non-secure'; // Ensure nanoid is available or use uuid
 
 const { width } = Dimensions.get('window');
 
 type Step =
   | 'phone_input'
+  | 'telegram_verification'
   | 'front' | 'processing_front'
   | 'back' | 'processing_back'
   | 'selfie' | 'processing_selfie'
@@ -43,7 +45,14 @@ export default function RegisterScreen({ onBack, onFinish }: RegisterProps) {
   const [pin, setPin] = useState('');
   const [confirmPin, setConfirmPin] = useState('');
   const [faceIDEnabled, setFaceIDEnabled] = useState(true);
+  const [faceIDEnabled, setFaceIDEnabled] = useState(true);
   const [extractedData, setExtractedData] = useState<any>(null);
+
+  // Telegram State
+  const [sessionId] = useState(() => `session_${Math.random().toString(36).substring(7)}`);
+  const [telegramChatId, setTelegramChatId] = useState<string | null>(null);
+  const [isTelegramLinked, setIsTelegramLinked] = useState(false);
+  const [isCheckingTelegram, setIsCheckingTelegram] = useState(false);
 
   // ✅ State សម្រាប់រូបភាព
   const [frontImage, setFrontImage] = useState<string | null>(null);
@@ -77,90 +86,148 @@ export default function RegisterScreen({ onBack, onFinish }: RegisterProps) {
       uploadDataToBackend();
     }
     return () => clearTimeout(timer);
-  }, [step]);
+  }
+    return () => clearTimeout(timer);
+}, [step]);
 
-  // --- API CALL (FIXED: NO LOOP, LONG TIMEOUT) ---
-  const uploadDataToBackend = async () => {
-    if (isSubmitting) return; // ✅ Prevent double execution
-    setIsSubmitting(true);
+// --- TELEGRAM POLLING ---
+useEffect(() => {
+  let interval: NodeJS.Timeout;
+  if (step === 'telegram_verification' && isCheckingTelegram) {
+    interval = setInterval(async () => {
+      try {
+        const res = await api.get(`/trpc/auth.checkTelegramStatus?input=${encodeURIComponent(JSON.stringify({ sessionId }))}`);
+        if (res.data?.result?.data?.linked) {
+          setTelegramChatId(res.data.result.data.chatId);
+          setIsTelegramLinked(true);
+          setIsCheckingTelegram(false);
+          clearInterval(interval);
 
-    try {
-      console.log("📤 Sending data to Backend (Single Attempt)...");
+          // Auto advance after 1.5s
+          setTimeout(() => setStep('front'), 1500);
+        }
+      } catch (e) {
+        console.log("Polling error", e);
+      }
+    }, 2000);
+  }
+  return () => clearInterval(interval);
+}, [step, isCheckingTelegram, sessionId]);
 
-      if (!frontImage || !backImage || !selfieImage) {
-        Alert.alert("Error", "Missing photos. Please try again.");
-        setStep('front');
-        setIsSubmitting(false);
-        return;
+const handleVerifyTelegram = async () => {
+  try {
+    const res = await api.post('/trpc/auth.getTelegramLink', { sessionId });
+    if (res.data?.result?.data?.link) {
+      // Open Telegram
+      const link = res.data.result.data.link;
+      // Add a small delay for deep link handling
+      try {
+        // Try to open with Linking
+        const supported = await Linking.canOpenURL(link);
+        if (supported) {
+          await Linking.openURL(link);
+        } else {
+          // Fallback for emulator or weird states
+          Alert.alert("Link Generated", link);
+        }
+      } catch (bgError) {
+        // If linking fails, show the link
+        Alert.alert("Open Telegram Manually", link);
       }
 
-      const payload = {
-        nameEn: "",
-        nameKh: "",
-        idNumber: "",
-        gender: "male",
-        address: "",
-        phoneNumber: phoneNumber, // ✅ Send Phone Number
-        frontImage: frontImage,
-        backImage: backImage,
-        selfieImage: selfieImage
+      setIsCheckingTelegram(true);
+    }
+  } catch (e) {
+    Alert.alert("Error", "Failed to generate Telegram link");
+  }
+};
+
+// --- API CALL (FIXED: NO LOOP, LONG TIMEOUT) ---
+const uploadDataToBackend = async () => {
+  if (isSubmitting) return; // ✅ Prevent double execution
+  setIsSubmitting(true);
+
+  try {
+    console.log("📤 Sending data to Backend (Single Attempt)...");
+
+    if (!frontImage || !backImage || !selfieImage) {
+      Alert.alert("Error", "Missing photos. Please try again.");
+      setStep('front');
+      setIsSubmitting(false);
+      return;
+    }
+
+    const payload = {
+      nameEn: "",
+      nameKh: "",
+      idNumber: "",
+      gender: "male",
+      address: "",
+      address: "",
+      phoneNumber: phoneNumber, // ✅ Send Phone Number
+      telegramChatId: telegramChatId, // ✅ Send Telegram Chat ID
+      frontImage: frontImage,
+      backImage: backImage,
+      selfieImage: selfieImage
+    };
+
+    // ✅ Get Base URL
+    const { apiBaseUrl } = getApiBaseUrls();
+    const url = `${apiBaseUrl}/kyc/submit`;
+
+    console.log(`Target URL: ${url}`);
+
+    // ✅ Send Request with 120s Timeout
+    const response = await axios.post(url, payload, { timeout: 120000 });
+
+    console.log("Response Status:", response.status);
+
+    const isSuccessful =
+      response?.data?.success === true ||
+      response?.data?.result?.data?.json?.success === true ||
+      typeof response?.data?.userId === "number" ||
+      typeof response?.data?.result?.data?.userId === "number";
+
+    if (isSuccessful) {
+      console.log("✅ Upload Successful!");
+
+      const backendResult = response.data.result?.data?.json || response.data;
+      const ocrData = backendResult.extractedData || {};
+
+      const finalData = {
+        nameEn: ocrData.nameEn || "New User",
+        id: ocrData.nationalId || `ID_${Date.now()}`, // Fallback if OCR fails
+        validUntil: ocrData.expiryDate || "Unknown Date",
+        avatar: selfieImage
       };
 
-      // ✅ Get Base URL
-      const { apiBaseUrl } = getApiBaseUrls();
-      const url = `${apiBaseUrl}/kyc/submit`;
+      setExtractedData(finalData);
 
-      console.log(`Target URL: ${url}`);
-
-      // ✅ Send Request with 120s Timeout
-      const response = await axios.post(url, payload, { timeout: 120000 });
-
-      console.log("Response Status:", response.status);
-
-      const isSuccessful =
-        response?.data?.success === true ||
-        response?.data?.result?.data?.json?.success === true ||
-        typeof response?.data?.userId === "number" ||
-        typeof response?.data?.result?.data?.userId === "number";
-
-      if (isSuccessful) {
-        console.log("✅ Upload Successful!");
-
-        const backendResult = response.data.result?.data?.json || response.data;
-        const ocrData = backendResult.extractedData || {};
-
-        const finalData = {
-          nameEn: ocrData.nameEn || "New User",
-          id: ocrData.nationalId || `ID_${Date.now()}`, // Fallback if OCR fails
-          validUntil: ocrData.expiryDate || "Unknown Date",
-          avatar: selfieImage
-        };
-
-        setExtractedData(finalData);
-
-        // Move to next step
-        setStep('pin_setup');
-      } else {
-        throw new Error("API returned success=false");
-      }
-
-    } catch (error: any) {
-      console.error("Upload Error:", error);
-
-      Alert.alert(
-        "Upload Failed",
-        "Connection timed out or failed. Please check your internet and try again."
-      );
-      setStep('selfie'); // Let user retry manually
-    } finally {
-      setIsSubmitting(false);
+      // Move to next step
+      setStep('pin_setup');
+    } else {
+      throw new Error("API returned success=false");
     }
-  };
 
-  // --- ACTIONS ---
+  } catch (error: any) {
+    console.error("Upload Error:", error);
+
+    Alert.alert(
+      "Upload Failed",
+      "Connection timed out or failed. Please check your internet and try again."
+    );
+    setStep('selfie'); // Let user retry manually
+  } finally {
+    setIsSubmitting(false);
+  }
+};
+
+// --- ACTIONS ---
+const handleStepBack = () => {
   const handleStepBack = () => {
     if (step === 'phone_input') onBack();
-    else if (step === 'front') setStep('phone_input');
+    else if (step === 'telegram_verification') setStep('phone_input');
+    else if (step === 'front') setStep('telegram_verification');
     else if (step === 'back') setStep('front');
     else if (step === 'selfie') setStep('back');
     else if (step === 'pin_setup') setStep('selfie');
@@ -299,6 +366,62 @@ export default function RegisterScreen({ onBack, onFinish }: RegisterProps) {
           >
             <Text style={{ color: 'white', fontWeight: 'bold', fontSize: 16 }}>Continue</Text>
           </TouchableOpacity>
+        </View>
+      </SafeAreaView>
+    );
+  }
+
+  if (step === 'telegram_verification') {
+    return (
+      <SafeAreaView style={styles.container}>
+        <StatusBar barStyle="dark-content" />
+        <View style={styles.headerRow}>
+          <TouchableOpacity onPress={() => setStep('phone_input')}>
+            <Ionicons name="arrow-back" size={28} color="#0F172A" />
+          </TouchableOpacity>
+        </View>
+        <View style={{ padding: 24, alignItems: 'center', flex: 1 }}>
+          <View style={{ width: 80, height: 80, borderRadius: 40, backgroundColor: '#EFF6FF', justifyContent: 'center', alignItems: 'center', marginBottom: 20 }}>
+            <Ionicons name="paper-plane" size={40} color="#2563EB" />
+          </View>
+          <Text style={styles.titleMain}>Verify Telegram</Text>
+          <Text style={[styles.stepText, { textAlign: 'center' }]}>
+            We will send OTPs to your Telegram. Please verify your account to continue.
+          </Text>
+
+          <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center', width: '100%' }}>
+            {isTelegramLinked ? (
+              <View style={{ alignItems: 'center' }}>
+                <Ionicons name="checkmark-circle" size={80} color="#16a34a" />
+                <Text style={{ fontSize: 20, fontWeight: 'bold', color: '#16a34a', marginTop: 10 }}>Verified!</Text>
+              </View>
+            ) : (
+              <TouchableOpacity
+                style={{
+                  backgroundColor: '#2563EB',
+                  paddingVertical: 16,
+                  paddingHorizontal: 32,
+                  borderRadius: 30,
+                  alignItems: 'center',
+                  flexDirection: 'row',
+                  gap: 10,
+                  width: '100%',
+                  justifyContent: 'center'
+                }}
+                onPress={handleVerifyTelegram}
+              >
+                <Ionicons name="logo-telegram" size={24} color="white" />
+                <Text style={{ color: 'white', fontWeight: 'bold', fontSize: 16 }}>Open Telegram</Text>
+              </TouchableOpacity>
+            )}
+
+            {isCheckingTelegram && !isTelegramLinked && (
+              <View style={{ marginTop: 30, alignItems: 'center' }}>
+                <ActivityIndicator size="small" color="#64748B" />
+                <Text style={{ color: '#64748B', marginTop: 10 }}>Waiting for you to click "Start"...</Text>
+              </View>
+            )}
+          </View>
         </View>
       </SafeAreaView>
     );
