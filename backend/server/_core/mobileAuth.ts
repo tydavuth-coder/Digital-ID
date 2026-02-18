@@ -5,7 +5,7 @@ import * as db from "../db";
 import { sdk } from "./sdk";
 import { COOKIE_NAME, ONE_YEAR_MS } from "@shared/const";
 import { getSessionCookieOptions } from "./cookies";
-import { generateTelegramLinkToken } from "./telegram";
+import { generateTelegramLinkToken, generateRegistrationLink, checkRegistrationStatus } from "./telegram";
 
 const loginSchema = z.object({
     phone: z.string(),
@@ -216,7 +216,40 @@ export function registerMobileAuthRoutes(app: Express) {
     });
 
 
-    // TELEGRAM LINKING
+    // TELEGRAM REGISTRATION (PUBLIC)
+    app.post("/api/auth/telegram/generate-registration-link", async (req: Request, res: Response) => {
+        try {
+            const { sessionId } = req.body;
+            if (!sessionId) {
+                res.status(400).json({ error: "Session ID is required" });
+                return;
+            }
+
+            const link = await generateRegistrationLink(sessionId);
+            res.json({ success: true, link });
+        } catch (error) {
+            console.error("[Telegram] Generate Reg Link failed:", error);
+            res.status(500).json({ error: "Internal server error" });
+        }
+    });
+
+    app.post("/api/auth/telegram/check-registration-status", async (req: Request, res: Response) => {
+        try {
+            const { sessionId } = req.body;
+            if (!sessionId) {
+                res.status(400).json({ error: "Session ID is required" });
+                return;
+            }
+
+            const chatId = checkRegistrationStatus(sessionId);
+            res.json({ success: true, chatId }); // chatId is null if not linked yet
+        } catch (error) {
+            console.error("[Telegram] Check status failed:", error);
+            res.status(500).json({ error: "Internal server error" });
+        }
+    });
+
+    // TELEGRAM LINKING (PROTECTED)
     app.post("/api/auth/telegram/link", async (req: Request, res: Response) => {
         try {
             // Verify Session

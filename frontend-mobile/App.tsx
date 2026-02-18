@@ -7,6 +7,7 @@ import { Ionicons } from '@expo/vector-icons';
 
 import SyncScreen from './src/screens/SyncScreen';
 import RegisterScreen from './src/screens/RegisterScreen';
+// import RegisterScreen from './src/screens/DebugRegisterScreen'; // DEBUG SWAP
 import RecoveryScreen from './src/screens/RecoveryScreen';
 import DashboardScreen from './src/screens/DashboardScreen';
 import EditProfileScreen from './src/screens/EditProfileScreen';
