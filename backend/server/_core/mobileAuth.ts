@@ -77,98 +77,11 @@ export function registerMobileAuthRoutes(app: Express) {
         }
     });
 
-    // SEND OTP
-    app.post("/api/auth/recovery/send-otp", async (req: Request, res: Response) => {
-        const parsed = sendOtpSchema.safeParse(req.body);
-        if (!parsed.success) {
-            res.status(400).json({ error: "Invalid input" });
-            return;
-        }
-        const { phone } = parsed.data;
+    // OTP Routes moved to recovery.ts
 
-        try {
-            const user = await db.getUserByPhone(phone);
-            if (!user) {
-                // Fake success
-                res.json({ success: true, message: "OTP sent (mock)" });
-                return;
-            }
 
-            console.log(`[MobileAuth] OTP for ${phone}: 123456`);
-            res.json({ success: true, message: "OTP sent" });
-        } catch (error) {
-            console.error("[MobileAuth] Send OTP failed:", error);
-            res.status(500).json({ error: "Internal server error" });
-        }
-    });
 
-    // VERIFY OTP
-    app.post("/api/auth/recovery/verify-otp", async (req: Request, res: Response) => {
-        const parsed = verifyOtpSchema.safeParse(req.body);
-        if (!parsed.success) {
-            res.status(400).json({ error: "Invalid input" });
-            return;
-        }
-        const { phone, otp } = parsed.data;
 
-        if (otp !== "123456") {
-            res.status(400).json({ error: "Invalid OTP" });
-            return;
-        }
-
-        try {
-            const user = await db.getUserByPhone(phone);
-            if (!user) {
-                res.status(404).json({ error: "User not found" });
-                return;
-            }
-
-            const recoveryToken = nanoid(32);
-            await db.updateUser(user.id, { recoveryToken });
-
-            res.json({ success: true, recoveryToken });
-        } catch (error) {
-            console.error("[MobileAuth] Verify OTP failed:", error);
-            res.status(500).json({ error: "Internal server error" });
-        }
-    });
-
-    // RESET PIN
-    app.post("/api/auth/recovery/reset-pin", async (req: Request, res: Response) => {
-        const parsed = resetPinSchema.safeParse(req.body);
-        if (!parsed.success) {
-            res.status(400).json({ error: "Invalid input" });
-            return;
-        }
-        const { recoveryToken, newPin } = parsed.data;
-
-        try {
-            const user = await db.getUserByRecoveryToken(recoveryToken);
-            if (!user) {
-                res.status(400).json({ error: "Invalid recovery token" });
-                return;
-            }
-
-            await db.updateUser(user.id, {
-                pin: newPin,
-                recoveryToken: null
-            });
-
-            const sessionToken = await sdk.createSessionToken(user.openId, {
-                name: user.name || "User",
-                expiresInMs: ONE_YEAR_MS,
-            });
-
-            res.json({
-                success: true,
-                accessToken: sessionToken,
-                refreshToken: nanoid(32)
-            });
-        } catch (error) {
-            console.error("[MobileAuth] Reset PIN failed:", error);
-            res.status(500).json({ error: "Internal server error" });
-        }
-    });
 
     // UPDATE PROFILE
     app.post("/api/profile/update", async (req: Request, res: Response) => {
