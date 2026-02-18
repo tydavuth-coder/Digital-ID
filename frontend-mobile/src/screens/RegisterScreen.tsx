@@ -8,7 +8,7 @@ import { Ionicons, MaterialIcons, MaterialCommunityIcons } from '@expo/vector-ic
 import { LinearGradient } from 'expo-linear-gradient';
 import axios from 'axios';
 import { api, getApiBaseUrls } from '../api/client';
-import { nanoid } from 'nanoid/non-secure'; // Ensure nanoid is available or use uuid
+
 
 const { width } = Dimensions.get('window');
 
@@ -45,7 +45,7 @@ export default function RegisterScreen({ onBack, onFinish }: RegisterProps) {
   const [pin, setPin] = useState('');
   const [confirmPin, setConfirmPin] = useState('');
   const [faceIDEnabled, setFaceIDEnabled] = useState(true);
-  const [faceIDEnabled, setFaceIDEnabled] = useState(true);
+
   const [extractedData, setExtractedData] = useState<any>(null);
 
   // Telegram State
@@ -86,574 +86,573 @@ export default function RegisterScreen({ onBack, onFinish }: RegisterProps) {
       uploadDataToBackend();
     }
     return () => clearTimeout(timer);
-  }
-    return () => clearTimeout(timer);
-}, [step]);
+  }, [step]);
 
-// --- TELEGRAM POLLING ---
-useEffect(() => {
-  let interval: NodeJS.Timeout;
-  if (step === 'telegram_verification' && isCheckingTelegram) {
-    interval = setInterval(async () => {
-      try {
-        const res = await api.get(`/trpc/auth.checkTelegramStatus?input=${encodeURIComponent(JSON.stringify({ sessionId }))}`);
-        if (res.data?.result?.data?.linked) {
-          setTelegramChatId(res.data.result.data.chatId);
-          setIsTelegramLinked(true);
-          setIsCheckingTelegram(false);
-          clearInterval(interval);
+  // --- TELEGRAM POLLING ---
+  useEffect(() => {
+    let interval: NodeJS.Timeout;
+    if (step === 'telegram_verification' && isCheckingTelegram) {
+      interval = setInterval(async () => {
+        try {
+          const res = await api.get(`/trpc/auth.checkTelegramStatus?input=${encodeURIComponent(JSON.stringify({ sessionId }))}`);
+          if (res.data?.result?.data?.linked) {
+            setTelegramChatId(res.data.result.data.chatId);
+            setIsTelegramLinked(true);
+            setIsCheckingTelegram(false);
+            clearInterval(interval);
 
-          // Auto advance after 1.5s
-          setTimeout(() => setStep('front'), 1500);
+            // Auto advance after 1.5s
+            setTimeout(() => setStep('front'), 1500);
+          }
+        } catch (e) {
+          console.log("Polling error", e);
         }
-      } catch (e) {
-        console.log("Polling error", e);
-      }
-    }, 2000);
-  }
-  return () => clearInterval(interval);
-}, [step, isCheckingTelegram, sessionId]);
+      }, 2000);
+    }
+    return () => clearInterval(interval);
+  }, [step, isCheckingTelegram, sessionId]);
 
-const handleVerifyTelegram = async () => {
-  try {
-    const res = await api.post('/trpc/auth.getTelegramLink', { sessionId });
-    if (res.data?.result?.data?.link) {
-      // Open Telegram
-      const link = res.data.result.data.link;
-      // Add a small delay for deep link handling
-      try {
-        // Try to open with Linking
-        const supported = await Linking.canOpenURL(link);
-        if (supported) {
-          await Linking.openURL(link);
-        } else {
-          // Fallback for emulator or weird states
-          Alert.alert("Link Generated", link);
+  const handleVerifyTelegram = async () => {
+    try {
+      const res = await api.post('/trpc/auth.getTelegramLink', { sessionId });
+      if (res.data?.result?.data?.link) {
+        // Open Telegram
+        const link = res.data.result.data.link;
+        // Add a small delay for deep link handling
+        try {
+          // Try to open with Linking
+          const supported = await Linking.canOpenURL(link);
+          if (supported) {
+            await Linking.openURL(link);
+          } else {
+            // Fallback for emulator or weird states
+            Alert.alert("Link Generated", link);
+          }
+        } catch (bgError) {
+          // If linking fails, show the link
+          Alert.alert("Open Telegram Manually", link);
         }
-      } catch (bgError) {
-        // If linking fails, show the link
-        Alert.alert("Open Telegram Manually", link);
+
+        setIsCheckingTelegram(true);
+      }
+    } catch (e) {
+      Alert.alert("Error", "Failed to generate Telegram link");
+    }
+  };
+
+  // --- API CALL (FIXED: NO LOOP, LONG TIMEOUT) ---
+  const uploadDataToBackend = async () => {
+    if (isSubmitting) return; // ✅ Prevent double execution
+    setIsSubmitting(true);
+
+    try {
+      console.log("📤 Sending data to Backend (Single Attempt)...");
+
+      if (!frontImage || !backImage || !selfieImage) {
+        Alert.alert("Error", "Missing photos. Please try again.");
+        setStep('front');
+        setIsSubmitting(false);
+        return;
       }
 
-      setIsCheckingTelegram(true);
-    }
-  } catch (e) {
-    Alert.alert("Error", "Failed to generate Telegram link");
-  }
-};
+      const payload = {
+        nameEn: "",
+        nameKh: "",
+        idNumber: "",
+        gender: "male",
+        address: "",
 
-// --- API CALL (FIXED: NO LOOP, LONG TIMEOUT) ---
-const uploadDataToBackend = async () => {
-  if (isSubmitting) return; // ✅ Prevent double execution
-  setIsSubmitting(true);
-
-  try {
-    console.log("📤 Sending data to Backend (Single Attempt)...");
-
-    if (!frontImage || !backImage || !selfieImage) {
-      Alert.alert("Error", "Missing photos. Please try again.");
-      setStep('front');
-      setIsSubmitting(false);
-      return;
-    }
-
-    const payload = {
-      nameEn: "",
-      nameKh: "",
-      idNumber: "",
-      gender: "male",
-      address: "",
-      address: "",
-      phoneNumber: phoneNumber, // ✅ Send Phone Number
-      telegramChatId: telegramChatId, // ✅ Send Telegram Chat ID
-      frontImage: frontImage,
-      backImage: backImage,
-      selfieImage: selfieImage
-    };
-
-    // ✅ Get Base URL
-    const { apiBaseUrl } = getApiBaseUrls();
-    const url = `${apiBaseUrl}/kyc/submit`;
-
-    console.log(`Target URL: ${url}`);
-
-    // ✅ Send Request with 120s Timeout
-    const response = await axios.post(url, payload, { timeout: 120000 });
-
-    console.log("Response Status:", response.status);
-
-    const isSuccessful =
-      response?.data?.success === true ||
-      response?.data?.result?.data?.json?.success === true ||
-      typeof response?.data?.userId === "number" ||
-      typeof response?.data?.result?.data?.userId === "number";
-
-    if (isSuccessful) {
-      console.log("✅ Upload Successful!");
-
-      const backendResult = response.data.result?.data?.json || response.data;
-      const ocrData = backendResult.extractedData || {};
-
-      const finalData = {
-        nameEn: ocrData.nameEn || "New User",
-        id: ocrData.nationalId || `ID_${Date.now()}`, // Fallback if OCR fails
-        validUntil: ocrData.expiryDate || "Unknown Date",
-        avatar: selfieImage
+        phoneNumber: phoneNumber, // ✅ Send Phone Number
+        telegramChatId: telegramChatId, // ✅ Send Telegram Chat ID
+        frontImage: frontImage,
+        backImage: backImage,
+        selfieImage: selfieImage
       };
 
-      setExtractedData(finalData);
+      // ✅ Get Base URL
+      const { apiBaseUrl } = getApiBaseUrls();
+      const url = `${apiBaseUrl}/kyc/submit`;
 
-      // Move to next step
-      setStep('pin_setup');
-    } else {
-      throw new Error("API returned success=false");
+      console.log(`Target URL: ${url}`);
+
+      // ✅ Send Request with 120s Timeout
+      const response = await axios.post(url, payload, { timeout: 120000 });
+
+      console.log("Response Status:", response.status);
+
+      const isSuccessful =
+        response?.data?.success === true ||
+        response?.data?.result?.data?.json?.success === true ||
+        typeof response?.data?.userId === "number" ||
+        typeof response?.data?.result?.data?.userId === "number";
+
+      if (isSuccessful) {
+        console.log("✅ Upload Successful!");
+
+        const backendResult = response.data.result?.data?.json || response.data;
+        const ocrData = backendResult.extractedData || {};
+
+        const finalData = {
+          nameEn: ocrData.nameEn || "New User",
+          id: ocrData.nationalId || `ID_${Date.now()}`, // Fallback if OCR fails
+          validUntil: ocrData.expiryDate || "Unknown Date",
+          avatar: selfieImage
+        };
+
+        setExtractedData(finalData);
+
+        // Move to next step
+        setStep('pin_setup');
+      } else {
+        throw new Error("API returned success=false");
+      }
+
+    } catch (error: any) {
+      console.error("Upload Error:", error);
+
+      Alert.alert(
+        "Upload Failed",
+        "Connection timed out or failed. Please check your internet and try again."
+      );
+      setStep('selfie'); // Let user retry manually
+    } finally {
+      setIsSubmitting(false);
     }
+  };
 
-  } catch (error: any) {
-    console.error("Upload Error:", error);
-
-    Alert.alert(
-      "Upload Failed",
-      "Connection timed out or failed. Please check your internet and try again."
-    );
-    setStep('selfie'); // Let user retry manually
-  } finally {
-    setIsSubmitting(false);
-  }
-};
-
-// --- ACTIONS ---
-const handleStepBack = () => {
+  // --- ACTIONS ---
   const handleStepBack = () => {
-    if (step === 'phone_input') onBack();
-    else if (step === 'telegram_verification') setStep('phone_input');
-    else if (step === 'front') setStep('telegram_verification');
-    else if (step === 'back') setStep('front');
-    else if (step === 'selfie') setStep('back');
-    else if (step === 'pin_setup') setStep('selfie');
-    else if (step === 'pin_confirm') {
-      setStep('pin_setup');
-      setPin('');
-    }
-  };
-
-  const handleCapture = async () => {
-    if (cameraRef.current) {
-      try {
-        console.log("📸 Attempting to take picture...");
-        const photo = await cameraRef.current.takePictureAsync({
-          base64: true,
-          quality: 0.5,
-          skipProcessing: true,
-          exif: false
-        });
-
-        if (!photo || !photo.base64) {
-          throw new Error("Failed to capture image data");
-        }
-
-        console.log("✅ Picture taken:", photo.uri);
-        const base64Img = `data:image/jpeg;base64,${photo.base64}`;
-
-        if (step === 'front') {
-          setFrontImage(base64Img);
-          setStep('processing_front');
-        } else if (step === 'back') {
-          setBackImage(base64Img);
-          setStep('processing_back');
-        } else if (step === 'selfie') {
-          // ... selfie logic ...
-          // Simplified for debugging safety, recursive logic was risky
-          setSelfieImage(base64Img);
-          setStep('processing_selfie');
-        }
-      } catch (e: any) {
-        console.error("Failed to capture photo:", e);
-        Alert.alert("Camera Error", e.message || "Could not take photo.");
+    const handleStepBack = () => {
+      if (step === 'phone_input') onBack();
+      else if (step === 'telegram_verification') setStep('phone_input');
+      else if (step === 'front') setStep('telegram_verification');
+      else if (step === 'back') setStep('front');
+      else if (step === 'selfie') setStep('back');
+      else if (step === 'pin_setup') setStep('selfie');
+      else if (step === 'pin_confirm') {
+        setStep('pin_setup');
+        setPin('');
       }
-    } else {
-      console.warn("Camera ref is null");
-    }
-  };
+    };
 
-  const toggleFlashButton = () => {
-    if (facing === 'front') setSelfieFlashOn(!selfieFlashOn);
-    else setFlash(!flash);
-  };
+    const handleCapture = async () => {
+      if (cameraRef.current) {
+        try {
+          console.log("📸 Attempting to take picture...");
+          const photo = await cameraRef.current.takePictureAsync({
+            base64: true,
+            quality: 0.5,
+            skipProcessing: true,
+            exif: false
+          });
 
-  const handlePinInput = (num: string) => {
-    if (step === 'pin_setup') {
-      if (num === 'del') setPin(prev => prev.slice(0, -1));
-      else if (pin.length < 6) {
-        const newPin = pin + num;
-        setPin(newPin);
-        if (newPin.length === 6) setTimeout(() => setStep('pin_confirm'), 300);
+          if (!photo || !photo.base64) {
+            throw new Error("Failed to capture image data");
+          }
+
+          console.log("✅ Picture taken:", photo.uri);
+          const base64Img = `data:image/jpeg;base64,${photo.base64}`;
+
+          if (step === 'front') {
+            setFrontImage(base64Img);
+            setStep('processing_front');
+          } else if (step === 'back') {
+            setBackImage(base64Img);
+            setStep('processing_back');
+          } else if (step === 'selfie') {
+            // ... selfie logic ...
+            // Simplified for debugging safety, recursive logic was risky
+            setSelfieImage(base64Img);
+            setStep('processing_selfie');
+          }
+        } catch (e: any) {
+          console.error("Failed to capture photo:", e);
+          Alert.alert("Camera Error", e.message || "Could not take photo.");
+        }
+      } else {
+        console.warn("Camera ref is null");
       }
-    } else if (step === 'pin_confirm') {
-      if (num === 'del') setConfirmPin(prev => prev.slice(0, -1));
-      else if (confirmPin.length < 6) {
-        const newConfirm = confirmPin + num;
-        setConfirmPin(newConfirm);
-        if (newConfirm.length === 6) {
-          if (newConfirm === pin) {
-            setTimeout(() => setStep('pending_approval'), 300);
-          } else {
-            Alert.alert("Error", "PINs do not match");
-            setConfirmPin('');
+    };
+
+    const toggleFlashButton = () => {
+      if (facing === 'front') setSelfieFlashOn(!selfieFlashOn);
+      else setFlash(!flash);
+    };
+
+    const handlePinInput = (num: string) => {
+      if (step === 'pin_setup') {
+        if (num === 'del') setPin(prev => prev.slice(0, -1));
+        else if (pin.length < 6) {
+          const newPin = pin + num;
+          setPin(newPin);
+          if (newPin.length === 6) setTimeout(() => setStep('pin_confirm'), 300);
+        }
+      } else if (step === 'pin_confirm') {
+        if (num === 'del') setConfirmPin(prev => prev.slice(0, -1));
+        else if (confirmPin.length < 6) {
+          const newConfirm = confirmPin + num;
+          setConfirmPin(newConfirm);
+          if (newConfirm.length === 6) {
+            if (newConfirm === pin) {
+              setTimeout(() => setStep('pending_approval'), 300);
+            } else {
+              Alert.alert("Error", "PINs do not match");
+              setConfirmPin('');
+            }
           }
         }
       }
-    }
-  };
+    };
 
-  const toggleCameraFacing = () => {
-    setFacing(c => (c === 'back' ? 'front' : 'back'));
-  };
+    const toggleCameraFacing = () => {
+      setFacing(c => (c === 'back' ? 'front' : 'back'));
+    };
 
-  // --- RENDERERS ---
+    // --- RENDERERS ---
 
-  if (step === 'phone_input') {
-    return (
-      <SafeAreaView style={styles.container}>
-        <StatusBar barStyle="dark-content" />
-        <View style={styles.headerRow}>
-          <TouchableOpacity onPress={onBack}>
-            <Ionicons name="arrow-back" size={28} color="#0F172A" />
-          </TouchableOpacity>
-        </View>
-        <View style={{ padding: 24 }}>
-          <Text style={styles.titleMain}>Telegram Phone Number</Text>
-          <Text style={styles.stepText}>Enter the number connected to your Telegram account</Text>
-
-          <View style={{
-            marginTop: 30,
-            backgroundColor: 'white',
-            borderRadius: 16,
-            padding: 16,
-            borderWidth: 1,
-            borderColor: '#E2E8F0',
-            flexDirection: 'row',
-            alignItems: 'center'
-          }}>
-            <Text style={{ fontSize: 18, marginRight: 10, color: '#64748B' }}>+855</Text>
-            <View style={{ width: 1, height: 24, backgroundColor: '#E2E8F0', marginRight: 10 }} />
-            <TextInput
-              style={{ flex: 1, fontSize: 18, color: '#0F172A' }}
-              placeholder="Enter Number"
-              placeholderTextColor="#CBD5E1"
-              keyboardType="phone-pad"
-              value={phoneNumber}
-              onChangeText={setPhoneNumber}
-              autoFocus={true}
-            />
+    if (step === 'phone_input') {
+      return (
+        <SafeAreaView style={styles.container}>
+          <StatusBar barStyle="dark-content" />
+          <View style={styles.headerRow}>
+            <TouchableOpacity onPress={onBack}>
+              <Ionicons name="arrow-back" size={28} color="#0F172A" />
+            </TouchableOpacity>
           </View>
+          <View style={{ padding: 24 }}>
+            <Text style={styles.titleMain}>Telegram Phone Number</Text>
+            <Text style={styles.stepText}>Enter the number connected to your Telegram account</Text>
 
-          <TouchableOpacity
-            style={{
-              marginTop: 24,
-              backgroundColor: phoneNumber.length >= 8 ? '#2563EB' : '#94A3B8',
+            <View style={{
+              marginTop: 30,
+              backgroundColor: 'white',
+              borderRadius: 16,
               padding: 16,
-              borderRadius: 14,
-              alignItems: 'center',
-              shadowColor: "#000",
-              shadowOffset: { width: 0, height: 2 },
-              shadowOpacity: 0.1,
-              shadowRadius: 4,
-              elevation: 2
-            }}
-            disabled={phoneNumber.length < 8}
-            onPress={() => setStep('front')}
-          >
-            <Text style={{ color: 'white', fontWeight: 'bold', fontSize: 16 }}>Continue</Text>
+              borderWidth: 1,
+              borderColor: '#E2E8F0',
+              flexDirection: 'row',
+              alignItems: 'center'
+            }}>
+              <Text style={{ fontSize: 18, marginRight: 10, color: '#64748B' }}>+855</Text>
+              <View style={{ width: 1, height: 24, backgroundColor: '#E2E8F0', marginRight: 10 }} />
+              <TextInput
+                style={{ flex: 1, fontSize: 18, color: '#0F172A' }}
+                placeholder="Enter Number"
+                placeholderTextColor="#CBD5E1"
+                keyboardType="phone-pad"
+                value={phoneNumber}
+                onChangeText={setPhoneNumber}
+                autoFocus={true}
+              />
+            </View>
+
+            <TouchableOpacity
+              style={{
+                marginTop: 24,
+                backgroundColor: phoneNumber.length >= 8 ? '#2563EB' : '#94A3B8',
+                padding: 16,
+                borderRadius: 14,
+                alignItems: 'center',
+                shadowColor: "#000",
+                shadowOffset: { width: 0, height: 2 },
+                shadowOpacity: 0.1,
+                shadowRadius: 4,
+                elevation: 2
+              }}
+              disabled={phoneNumber.length < 8}
+              onPress={() => setStep('front')}
+            >
+              <Text style={{ color: 'white', fontWeight: 'bold', fontSize: 16 }}>Continue</Text>
+            </TouchableOpacity>
+          </View>
+        </SafeAreaView>
+      );
+    }
+
+    if (step === 'telegram_verification') {
+      return (
+        <SafeAreaView style={styles.container}>
+          <StatusBar barStyle="dark-content" />
+          <View style={styles.headerRow}>
+            <TouchableOpacity onPress={() => setStep('phone_input')}>
+              <Ionicons name="arrow-back" size={28} color="#0F172A" />
+            </TouchableOpacity>
+          </View>
+          <View style={{ padding: 24, alignItems: 'center', flex: 1 }}>
+            <View style={{ width: 80, height: 80, borderRadius: 40, backgroundColor: '#EFF6FF', justifyContent: 'center', alignItems: 'center', marginBottom: 20 }}>
+              <Ionicons name="paper-plane" size={40} color="#2563EB" />
+            </View>
+            <Text style={styles.titleMain}>Verify Telegram</Text>
+            <Text style={[styles.stepText, { textAlign: 'center' }]}>
+              We will send OTPs to your Telegram. Please verify your account to continue.
+            </Text>
+
+            <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center', width: '100%' }}>
+              {isTelegramLinked ? (
+                <View style={{ alignItems: 'center' }}>
+                  <Ionicons name="checkmark-circle" size={80} color="#16a34a" />
+                  <Text style={{ fontSize: 20, fontWeight: 'bold', color: '#16a34a', marginTop: 10 }}>Verified!</Text>
+                </View>
+              ) : (
+                <TouchableOpacity
+                  style={{
+                    backgroundColor: '#2563EB',
+                    paddingVertical: 16,
+                    paddingHorizontal: 32,
+                    borderRadius: 30,
+                    alignItems: 'center',
+                    flexDirection: 'row',
+                    gap: 10,
+                    width: '100%',
+                    justifyContent: 'center'
+                  }}
+                  onPress={handleVerifyTelegram}
+                >
+                  <Ionicons name="logo-telegram" size={24} color="white" />
+                  <Text style={{ color: 'white', fontWeight: 'bold', fontSize: 16 }}>Open Telegram</Text>
+                </TouchableOpacity>
+              )}
+
+              {isCheckingTelegram && !isTelegramLinked && (
+                <View style={{ marginTop: 30, alignItems: 'center' }}>
+                  <ActivityIndicator size="small" color="#64748B" />
+                  <Text style={{ color: '#64748B', marginTop: 10 }}>Waiting for you to click "Start"...</Text>
+                </View>
+              )}
+            </View>
+          </View>
+        </SafeAreaView>
+      );
+    }
+
+    if (step === 'pending_approval') {
+      return (
+        <View style={styles.pendingContainer}>
+          <StatusBar barStyle="dark-content" />
+          <View style={styles.pendingContent}>
+            <View style={styles.successIcon}>
+              <Ionicons name="time" size={60} color="#F59E0B" />
+            </View>
+            <Text style={styles.pendingTitle}>កំពុងរង់ចាំការអនុម័ត</Text>
+            <Text style={styles.pendingSubTitle}>Pending Approval</Text>
+
+            <View style={styles.infoCard}>
+              <Text style={styles.infoText}>ឯកសាររបស់អ្នកត្រូវបានបញ្ជូនទៅកាន់ប្រព័ន្ធ។</Text>
+              <Text style={styles.infoText}>សូមរង់ចាំការត្រួតពិនិត្យពី Admin។</Text>
+            </View>
+
+            <TouchableOpacity style={styles.homeBtn} onPress={() => onFinish(extractedData)}>
+              <Text style={styles.homeBtnText}>ត្រឡប់ទៅទំព័រដើម</Text>
+            </TouchableOpacity>
+          </View>
+        </View>
+      );
+    }
+
+    // PIN UI
+    if (step === 'pin_setup' || step === 'pin_confirm') {
+      const isConfirm = step === 'pin_confirm';
+      const currentPin = isConfirm ? confirmPin : pin;
+      return (
+        <SafeAreaView style={styles.container}>
+          <View style={styles.headerRow}>
+            <TouchableOpacity onPress={handleStepBack}>
+              <Ionicons name="arrow-back" size={28} color="#0F172A" />
+            </TouchableOpacity>
+            <Text style={styles.headerTitleDark}>Security Setup</Text>
+            <View style={{ width: 28 }} />
+          </View>
+          <View style={styles.pinContent}>
+            <View style={{ alignItems: 'center', marginTop: 10 }}>
+              <View style={styles.lockIconBg}>
+                <MaterialIcons name={isConfirm ? "lock" : "lock-outline"} size={36} color="#2563EB" />
+              </View>
+              <Text style={styles.pinTitleMain}>{isConfirm ? "Confirm New PIN" : "Set Your PIN Code"}</Text>
+              <Text style={styles.pinSubtitle}>Create a 6-digit PIN to secure your digital identity.</Text>
+              <View style={styles.pinDotsRow}>
+                {[1, 2, 3, 4, 5, 6].map((i) => (
+                  <View key={i} style={[styles.pinDotCircle, currentPin.length >= i ? styles.pinDotFilled : null]} />
+                ))}
+              </View>
+            </View>
+
+            <View style={{ flex: 1 }} />
+
+            {!isConfirm && (
+              <View style={styles.biometricCard}>
+                <View style={{ flexDirection: 'row', alignItems: 'center', gap: 12 }}>
+                  <View style={styles.faceIdIcon}>
+                    <MaterialIcons name="face" size={22} color="#2563EB" />
+                  </View>
+                  <View>
+                    <Text style={styles.bioTitle}>Enable FaceID</Text>
+                    <Text style={styles.bioSub}>Use biometrics for faster login</Text>
+                  </View>
+                </View>
+                <Switch value={faceIDEnabled} onValueChange={setFaceIDEnabled} trackColor={{ false: "#767577", true: "#2563EB" }} thumbColor={"#f4f3f4"} />
+              </View>
+            )}
+
+            <View style={styles.keypad}>
+              {[
+                ['1', '2', '3'],
+                ['4', '5', '6'],
+                ['7', '8', '9'],
+                ['', '0', 'del']
+              ].map((row, rIdx) => (
+                <View key={rIdx} style={styles.keyRow}>
+                  {row.map((key, kIdx) => (
+                    <TouchableOpacity key={kIdx} style={styles.keyButton} onPress={() => handlePinInput(key)} disabled={key === ''}>
+                      {key === 'del' ? <Ionicons name="backspace-outline" size={28} color="#0F172A" /> : <Text style={styles.keyText}>{key}</Text>}
+                    </TouchableOpacity>
+                  ))}
+                </View>
+              ))}
+            </View>
+          </View>
+        </SafeAreaView>
+      );
+    }
+
+    // CAMERA UI
+    if (!permission) return <View />;
+    if (!permission.granted) {
+      return (
+        <View style={[styles.container, { justifyContent: 'center', alignItems: 'center' }]}>
+          <Text>Camera permission needed.</Text>
+          <TouchableOpacity onPress={requestPermission} style={{ marginTop: 20, padding: 10, backgroundColor: '#2563EB', borderRadius: 8 }}>
+            <Text style={{ color: 'white' }}>Allow Camera</Text>
           </TouchableOpacity>
         </View>
-      </SafeAreaView>
-    );
-  }
+      );
+    }
 
-  if (step === 'telegram_verification') {
+    const isProcessing = step.includes('processing');
+    const isSelfieStep = step === 'selfie' || step === 'processing_selfie';
+    const isBack = step === 'back' || step === 'processing_back';
+
+    let titleText = "Scan National ID";
+    let khmerText = "ស្កេនអត្តសញ្ញាណប័ណ្ណ";
+    let guideText = "Front Side / ផ្នែកខាងមុខ";
+    let stepCount = "Step 1 of 3";
+
+    if (isBack) {
+      guideText = "Back Side / ផ្នែកខាងក្រោយ";
+      stepCount = "Step 2 of 3";
+    } else if (isSelfieStep) {
+      titleText = "Selfie with ID";
+      khmerText = "ថតរូបជាមួយអត្តសញ្ញាណប័ណ្ណ";
+      stepCount = "Step 3 of 3";
+    }
+
+    const isFlashBtnActive = (facing === 'back' && flash) || (facing === 'front' && selfieFlashOn);
+
     return (
       <SafeAreaView style={styles.container}>
         <StatusBar barStyle="dark-content" />
-        <View style={styles.headerRow}>
-          <TouchableOpacity onPress={() => setStep('phone_input')}>
-            <Ionicons name="arrow-back" size={28} color="#0F172A" />
-          </TouchableOpacity>
-        </View>
-        <View style={{ padding: 24, alignItems: 'center', flex: 1 }}>
-          <View style={{ width: 80, height: 80, borderRadius: 40, backgroundColor: '#EFF6FF', justifyContent: 'center', alignItems: 'center', marginBottom: 20 }}>
-            <Ionicons name="paper-plane" size={40} color="#2563EB" />
-          </View>
-          <Text style={styles.titleMain}>Verify Telegram</Text>
-          <Text style={[styles.stepText, { textAlign: 'center' }]}>
-            We will send OTPs to your Telegram. Please verify your account to continue.
-          </Text>
+        {triggerWhiteScreen && <View style={styles.screenFlash} pointerEvents="none" />}
 
-          <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center', width: '100%' }}>
-            {isTelegramLinked ? (
-              <View style={{ alignItems: 'center' }}>
-                <Ionicons name="checkmark-circle" size={80} color="#16a34a" />
-                <Text style={{ fontSize: 20, fontWeight: 'bold', color: '#16a34a', marginTop: 10 }}>Verified!</Text>
-              </View>
-            ) : (
-              <TouchableOpacity
-                style={{
-                  backgroundColor: '#2563EB',
-                  paddingVertical: 16,
-                  paddingHorizontal: 32,
-                  borderRadius: 30,
-                  alignItems: 'center',
-                  flexDirection: 'row',
-                  gap: 10,
-                  width: '100%',
-                  justifyContent: 'center'
-                }}
-                onPress={handleVerifyTelegram}
-              >
-                <Ionicons name="logo-telegram" size={24} color="white" />
-                <Text style={{ color: 'white', fontWeight: 'bold', fontSize: 16 }}>Open Telegram</Text>
-              </TouchableOpacity>
-            )}
-
-            {isCheckingTelegram && !isTelegramLinked && (
-              <View style={{ marginTop: 30, alignItems: 'center' }}>
-                <ActivityIndicator size="small" color="#64748B" />
-                <Text style={{ color: '#64748B', marginTop: 10 }}>Waiting for you to click "Start"...</Text>
-              </View>
-            )}
-          </View>
-        </View>
-      </SafeAreaView>
-    );
-  }
-
-  if (step === 'pending_approval') {
-    return (
-      <View style={styles.pendingContainer}>
-        <StatusBar barStyle="dark-content" />
-        <View style={styles.pendingContent}>
-          <View style={styles.successIcon}>
-            <Ionicons name="time" size={60} color="#F59E0B" />
-          </View>
-          <Text style={styles.pendingTitle}>កំពុងរង់ចាំការអនុម័ត</Text>
-          <Text style={styles.pendingSubTitle}>Pending Approval</Text>
-
-          <View style={styles.infoCard}>
-            <Text style={styles.infoText}>ឯកសាររបស់អ្នកត្រូវបានបញ្ជូនទៅកាន់ប្រព័ន្ធ។</Text>
-            <Text style={styles.infoText}>សូមរង់ចាំការត្រួតពិនិត្យពី Admin។</Text>
-          </View>
-
-          <TouchableOpacity style={styles.homeBtn} onPress={() => onFinish(extractedData)}>
-            <Text style={styles.homeBtnText}>ត្រឡប់ទៅទំព័រដើម</Text>
-          </TouchableOpacity>
-        </View>
-      </View>
-    );
-  }
-
-  // PIN UI
-  if (step === 'pin_setup' || step === 'pin_confirm') {
-    const isConfirm = step === 'pin_confirm';
-    const currentPin = isConfirm ? confirmPin : pin;
-    return (
-      <SafeAreaView style={styles.container}>
         <View style={styles.headerRow}>
           <TouchableOpacity onPress={handleStepBack}>
             <Ionicons name="arrow-back" size={28} color="#0F172A" />
           </TouchableOpacity>
-          <Text style={styles.headerTitleDark}>Security Setup</Text>
+          <View style={{ alignItems: 'center' }}>
+            <Text style={styles.headerTitleDark}>Identity Verification</Text>
+            <View style={styles.paginationContainer}>
+              <View style={[styles.dot, (step === 'front' || step === 'processing_front') && styles.activeDot]} />
+              <View style={[styles.dot, (step === 'back' || step === 'processing_back') && styles.activeDot]} />
+              <View style={[styles.dot, (step === 'selfie' || step === 'processing_selfie') && styles.activeDot]} />
+            </View>
+          </View>
           <View style={{ width: 28 }} />
         </View>
-        <View style={styles.pinContent}>
-          <View style={{ alignItems: 'center', marginTop: 10 }}>
-            <View style={styles.lockIconBg}>
-              <MaterialIcons name={isConfirm ? "lock" : "lock-outline"} size={36} color="#2563EB" />
-            </View>
-            <Text style={styles.pinTitleMain}>{isConfirm ? "Confirm New PIN" : "Set Your PIN Code"}</Text>
-            <Text style={styles.pinSubtitle}>Create a 6-digit PIN to secure your digital identity.</Text>
-            <View style={styles.pinDotsRow}>
-              {[1, 2, 3, 4, 5, 6].map((i) => (
-                <View key={i} style={[styles.pinDotCircle, currentPin.length >= i ? styles.pinDotFilled : null]} />
-              ))}
-            </View>
-          </View>
 
-          <View style={{ flex: 1 }} />
+        <View style={styles.cameraSection}>
+          <Text style={styles.titleMain}>{titleText}</Text>
+          <Text style={styles.titleKhmer}>{khmerText}</Text>
+          <Text style={styles.stepText}>{stepCount}</Text>
 
-          {!isConfirm && (
-            <View style={styles.biometricCard}>
-              <View style={{ flexDirection: 'row', alignItems: 'center', gap: 12 }}>
-                <View style={styles.faceIdIcon}>
-                  <MaterialIcons name="face" size={22} color="#2563EB" />
-                </View>
-                <View>
-                  <Text style={styles.bioTitle}>Enable FaceID</Text>
-                  <Text style={styles.bioSub}>Use biometrics for faster login</Text>
+          <View style={styles.cameraContainer}>
+            {isProcessing ? (
+              <View style={styles.processingContainer}>
+                <ActivityIndicator size="large" color="#2563EB" style={{ transform: [{ scale: 1.5 }], marginBottom: 20 }} />
+                <Text style={styles.processingTitle}>Processing</Text>
+                <Text style={styles.processingSub}>Verifying image quality...</Text>
+                {isSelfieStep && <Text style={styles.processingKhmer}>Sending to Backend (This may take a minute)...</Text>}
+              </View>
+            ) : (
+              <View style={styles.cameraCard}>
+                <CameraView
+                  key={step}
+                  ref={cameraRef}
+                  style={StyleSheet.absoluteFillObject}
+                  facing={facing}
+                  enableTorch={!isSelfieStep && flash}
+                  onCameraReady={() => {
+                    console.log("Camera is ready!");
+                    setIsCameraReady(true);
+                  }}
+                />
+
+                <View style={styles.overlayContainer}>
+                  <View style={StyleSheet.absoluteFillObject} pointerEvents="none">
+                    <LinearGradient colors={['rgba(0,0,0,0.6)', 'transparent', 'rgba(0,0,0,0.6)']} style={StyleSheet.absoluteFill} />
+                  </View>
+
+                  <View style={[styles.frame, isSelfieStep ? styles.circleFrame : styles.rectFrame]}>
+                    {isSelfieStep && (
+                      <View style={styles.selfiePlaceholder}>
+                        <Ionicons name="person" size={120} color="rgba(255,255,255,0.3)" />
+                        <View style={styles.idCardHint}>
+                          <MaterialCommunityIcons name="card-account-details-outline" size={50} color="rgba(255,255,255,0.5)" />
+                        </View>
+                      </View>
+                    )}
+                    <View style={[styles.corner, styles.topLeft]} />
+                    <View style={[styles.corner, styles.topRight]} />
+                    <View style={[styles.corner, styles.bottomLeft]} />
+                    <View style={[styles.corner, styles.bottomRight]} />
+                    {!isSelfieStep && <View style={styles.guidePill}><Text style={styles.guidePillText}>{guideText}</Text></View>}
+                  </View>
                 </View>
               </View>
-              <Switch value={faceIDEnabled} onValueChange={setFaceIDEnabled} trackColor={{ false: "#767577", true: "#2563EB" }} thumbColor={"#f4f3f4"} />
-            </View>
+            )}
+          </View>
+
+          {!isProcessing && (
+            <>
+              <View style={styles.hintContainer}>
+                <MaterialIcons name="wb-sunny" size={20} color="#2563EB" />
+                <Text style={styles.hintTitle}>Lighting Check</Text>
+              </View>
+              <Text style={styles.hintText}>Make sure the lighting is good and letters are clear.</Text>
+              <Text style={styles.hintTextKhmer}>សូមប្រាកដថាពន្លឺគ្រប់គ្រាន់ និងអក្សរច្បាស់ល្អ</Text>
+
+              <View style={styles.bottomControls}>
+                <TouchableOpacity style={styles.controlItem} onPress={toggleCameraFacing}>
+                  <View style={styles.circleBtnSmall}>
+                    <Ionicons name="camera-reverse-outline" size={24} color="#64748B" />
+                  </View>
+                  <Text style={styles.controlLabel}>Flip</Text>
+                </TouchableOpacity>
+
+                <TouchableOpacity style={styles.shutterOuter} onPress={handleCapture}>
+                  <View style={styles.shutterInner} />
+                </TouchableOpacity>
+
+                <TouchableOpacity style={styles.controlItem} onPress={toggleFlashButton}>
+                  <View style={[styles.circleBtnSmall, isFlashBtnActive && { backgroundColor: '#FEF3C7' }]}>
+                    <Ionicons name={isFlashBtnActive ? "flash" : "flash-off"} size={24} color={isFlashBtnActive ? "#F59E0B" : "#64748B"} />
+                  </View>
+                  <Text style={styles.controlLabel}>Flash</Text>
+                </TouchableOpacity>
+              </View>
+            </>
           )}
-
-          <View style={styles.keypad}>
-            {[
-              ['1', '2', '3'],
-              ['4', '5', '6'],
-              ['7', '8', '9'],
-              ['', '0', 'del']
-            ].map((row, rIdx) => (
-              <View key={rIdx} style={styles.keyRow}>
-                {row.map((key, kIdx) => (
-                  <TouchableOpacity key={kIdx} style={styles.keyButton} onPress={() => handlePinInput(key)} disabled={key === ''}>
-                    {key === 'del' ? <Ionicons name="backspace-outline" size={28} color="#0F172A" /> : <Text style={styles.keyText}>{key}</Text>}
-                  </TouchableOpacity>
-                ))}
-              </View>
-            ))}
-          </View>
         </View>
       </SafeAreaView>
     );
   }
-
-  // CAMERA UI
-  if (!permission) return <View />;
-  if (!permission.granted) {
-    return (
-      <View style={[styles.container, { justifyContent: 'center', alignItems: 'center' }]}>
-        <Text>Camera permission needed.</Text>
-        <TouchableOpacity onPress={requestPermission} style={{ marginTop: 20, padding: 10, backgroundColor: '#2563EB', borderRadius: 8 }}>
-          <Text style={{ color: 'white' }}>Allow Camera</Text>
-        </TouchableOpacity>
-      </View>
-    );
-  }
-
-  const isProcessing = step.includes('processing');
-  const isSelfieStep = step === 'selfie' || step === 'processing_selfie';
-  const isBack = step === 'back' || step === 'processing_back';
-
-  let titleText = "Scan National ID";
-  let khmerText = "ស្កេនអត្តសញ្ញាណប័ណ្ណ";
-  let guideText = "Front Side / ផ្នែកខាងមុខ";
-  let stepCount = "Step 1 of 3";
-
-  if (isBack) {
-    guideText = "Back Side / ផ្នែកខាងក្រោយ";
-    stepCount = "Step 2 of 3";
-  } else if (isSelfieStep) {
-    titleText = "Selfie with ID";
-    khmerText = "ថតរូបជាមួយអត្តសញ្ញាណប័ណ្ណ";
-    stepCount = "Step 3 of 3";
-  }
-
-  const isFlashBtnActive = (facing === 'back' && flash) || (facing === 'front' && selfieFlashOn);
-
-  return (
-    <SafeAreaView style={styles.container}>
-      <StatusBar barStyle="dark-content" />
-      {triggerWhiteScreen && <View style={styles.screenFlash} pointerEvents="none" />}
-
-      <View style={styles.headerRow}>
-        <TouchableOpacity onPress={handleStepBack}>
-          <Ionicons name="arrow-back" size={28} color="#0F172A" />
-        </TouchableOpacity>
-        <View style={{ alignItems: 'center' }}>
-          <Text style={styles.headerTitleDark}>Identity Verification</Text>
-          <View style={styles.paginationContainer}>
-            <View style={[styles.dot, (step === 'front' || step === 'processing_front') && styles.activeDot]} />
-            <View style={[styles.dot, (step === 'back' || step === 'processing_back') && styles.activeDot]} />
-            <View style={[styles.dot, (step === 'selfie' || step === 'processing_selfie') && styles.activeDot]} />
-          </View>
-        </View>
-        <View style={{ width: 28 }} />
-      </View>
-
-      <View style={styles.cameraSection}>
-        <Text style={styles.titleMain}>{titleText}</Text>
-        <Text style={styles.titleKhmer}>{khmerText}</Text>
-        <Text style={styles.stepText}>{stepCount}</Text>
-
-        <View style={styles.cameraContainer}>
-          {isProcessing ? (
-            <View style={styles.processingContainer}>
-              <ActivityIndicator size="large" color="#2563EB" style={{ transform: [{ scale: 1.5 }], marginBottom: 20 }} />
-              <Text style={styles.processingTitle}>Processing</Text>
-              <Text style={styles.processingSub}>Verifying image quality...</Text>
-              {isSelfieStep && <Text style={styles.processingKhmer}>Sending to Backend (This may take a minute)...</Text>}
-            </View>
-          ) : (
-            <View style={styles.cameraCard}>
-              <CameraView
-                key={step}
-                ref={cameraRef}
-                style={StyleSheet.absoluteFillObject}
-                facing={facing}
-                enableTorch={!isSelfieStep && flash}
-                onCameraReady={() => {
-                  console.log("Camera is ready!");
-                  setIsCameraReady(true);
-                }}
-              />
-
-              <View style={styles.overlayContainer}>
-                <View style={StyleSheet.absoluteFillObject} pointerEvents="none">
-                  <LinearGradient colors={['rgba(0,0,0,0.6)', 'transparent', 'rgba(0,0,0,0.6)']} style={StyleSheet.absoluteFill} />
-                </View>
-
-                <View style={[styles.frame, isSelfieStep ? styles.circleFrame : styles.rectFrame]}>
-                  {isSelfieStep && (
-                    <View style={styles.selfiePlaceholder}>
-                      <Ionicons name="person" size={120} color="rgba(255,255,255,0.3)" />
-                      <View style={styles.idCardHint}>
-                        <MaterialCommunityIcons name="card-account-details-outline" size={50} color="rgba(255,255,255,0.5)" />
-                      </View>
-                    </View>
-                  )}
-                  <View style={[styles.corner, styles.topLeft]} />
-                  <View style={[styles.corner, styles.topRight]} />
-                  <View style={[styles.corner, styles.bottomLeft]} />
-                  <View style={[styles.corner, styles.bottomRight]} />
-                  {!isSelfieStep && <View style={styles.guidePill}><Text style={styles.guidePillText}>{guideText}</Text></View>}
-                </View>
-              </View>
-            </View>
-          )}
-        </View>
-
-        {!isProcessing && (
-          <>
-            <View style={styles.hintContainer}>
-              <MaterialIcons name="wb-sunny" size={20} color="#2563EB" />
-              <Text style={styles.hintTitle}>Lighting Check</Text>
-            </View>
-            <Text style={styles.hintText}>Make sure the lighting is good and letters are clear.</Text>
-            <Text style={styles.hintTextKhmer}>សូមប្រាកដថាពន្លឺគ្រប់គ្រាន់ និងអក្សរច្បាស់ល្អ</Text>
-
-            <View style={styles.bottomControls}>
-              <TouchableOpacity style={styles.controlItem} onPress={toggleCameraFacing}>
-                <View style={styles.circleBtnSmall}>
-                  <Ionicons name="camera-reverse-outline" size={24} color="#64748B" />
-                </View>
-                <Text style={styles.controlLabel}>Flip</Text>
-              </TouchableOpacity>
-
-              <TouchableOpacity style={styles.shutterOuter} onPress={handleCapture}>
-                <View style={styles.shutterInner} />
-              </TouchableOpacity>
-
-              <TouchableOpacity style={styles.controlItem} onPress={toggleFlashButton}>
-                <View style={[styles.circleBtnSmall, isFlashBtnActive && { backgroundColor: '#FEF3C7' }]}>
-                  <Ionicons name={isFlashBtnActive ? "flash" : "flash-off"} size={24} color={isFlashBtnActive ? "#F59E0B" : "#64748B"} />
-                </View>
-                <Text style={styles.controlLabel}>Flash</Text>
-              </TouchableOpacity>
-            </View>
-          </>
-        )}
-      </View>
-    </SafeAreaView>
-  );
 }
 
 const styles = StyleSheet.create({
