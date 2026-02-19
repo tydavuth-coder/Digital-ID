@@ -9,42 +9,12 @@ import { registerAuditExportRoutes } from "./auditExport";
 import { registerKycRoutes } from "./kyc";
 import { registerMobileAuthRoutes } from "./mobileAuth";
 import { registerRecoveryRoutes } from "./recovery"; // ✅ Import Recovery
-import { handleTelegramWebhook } from "./telegram";
-import { appRouter } from "../routers";
+import { appRouter } from "../routers"; // Ensure routers.ts exports appRouter
 import { createContext } from "./context";
+import { systemRouter } from "./systemRouter";
+import { telegramBotRouter } from "./telegramBot";
 import { serveStatic, setupVite } from "./vite";
 import { initializeWebSocket } from "../websocket";
-
-import { getFirebaseAdmin } from "./firebaseAdmin";
-import fs from "fs";
-import path from "path";
-
-// DIAGNOSTIC LOGGING
-console.log("\n\n==================================================");
-console.log("🚀 STARTING DIGITAL ID ADMIN SERVER - v2.0 (DEBUG)");
-console.log("==================================================");
-console.log("Checking environment...");
-const saPath = path.join(process.cwd(), "service-account.json");
-if (fs.existsSync(saPath)) {
-  console.log("✅ [Check] service-account.json FOUND at:", saPath);
-  try {
-    const sa = JSON.parse(fs.readFileSync(saPath, 'utf-8'));
-    console.log("   -> Project ID in file:", sa.project_id);
-  } catch (e) {
-    console.log("   -> ❌ Error reading JSON:", e);
-  }
-} else {
-  console.log("❌ [Check] service-account.json NOT FOUND at:", saPath);
-}
-console.log("==================================================\n");
-
-// Initialize Firebase Admin immediately to test
-try {
-  getFirebaseAdmin();
-  console.log("✅ [Check] Firebase Admin Initialized");
-} catch (error) {
-  console.error("❌ [Check] Firebase Admin Failed:", error);
-}
 
 function isPortAvailable(port: number): Promise<boolean> {
   return new Promise(resolve => {
@@ -72,6 +42,10 @@ async function startServer() {
   // Configure body parser with larger size limit for file uploads
   app.use(express.json({ limit: "50mb" }));
   app.use(express.urlencoded({ limit: "50mb", extended: true }));
+
+  // Webhook for Telegram
+  app.use("/api/telegram", telegramBotRouter);
+
   // OAuth callback under /api/oauth/callback
   registerOAuthRoutes(app);
   // Firebase Email/Password auth session
@@ -80,17 +54,6 @@ async function startServer() {
   registerKycRoutes(app);
   registerMobileAuthRoutes(app);
   registerRecoveryRoutes(app); // ✅ Register Recovery Routes
-
-  // ✅ Telegram Webhook
-  app.post("/api/webhooks/telegram", async (req, res) => {
-    try {
-      await handleTelegramWebhook(req.body);
-      res.json({ success: true });
-    } catch (e) {
-      console.error("Telegram Webhook Error:", e);
-      res.status(500).json({ error: "Internal Server Error" });
-    }
-  });
 
   registerAuditExportRoutes(app);
   // tRPC API

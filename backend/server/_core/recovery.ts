@@ -87,9 +87,27 @@ export function registerRecoveryRoutes(app: Express) {
             // Consume OTP
             otpStore.delete(phone);
 
-            const user = await db.getUserByPhone(phone);
+            // Normalize phone input: remove non-digits
+            const rawInput = phone.replace(/\D/g, '');
+            // We expect 855xxxxxx.
+
+            // Try finding user with various formats
+            const possibleFormats = [
+                phone,                           // As sent
+                `+${rawInput}`,                  // +855...
+                rawInput,                        // 855...
+                rawInput.replace(/^855/, '0'),   // 010... (Local format)
+            ];
+
+            let user = null;
+            for (const fmt of possibleFormats) {
+                user = await db.getUserByPhone(fmt);
+                if (user) break;
+            }
+
             if (!user) {
-                res.status(404).json({ success: false, message: "User not found" });
+                // Security: Don't reveal user doesn't exist, but for now specific error helps debug
+                res.status(404).json({ success: false, error: "Phone number not found." });
                 return;
             }
 

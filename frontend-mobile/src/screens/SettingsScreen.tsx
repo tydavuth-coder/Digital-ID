@@ -1,56 +1,14 @@
 import React, { useState } from 'react';
 import {
   StyleSheet, Text, View, TouchableOpacity, SafeAreaView,
-  StatusBar, ScrollView, Platform, Linking, Image
+  ScrollView, Platform, Linking, Image, Alert, Switch
 } from 'react-native';
-import { Ionicons, MaterialIcons, MaterialCommunityIcons, FontAwesome5 } from '@expo/vector-icons';
-import { api } from '../api/client';
-import { generateTelegramLink } from '../api/auth';
+import { Ionicons, MaterialIcons, MaterialCommunityIcons } from '@expo/vector-icons';
+import { useLanguage } from '../context/LanguageContext';
+import * as SecureStore from 'expo-secure-store';
+import { logout } from '../api/auth';
 
-// --- TRANSLATIONS ---
-type Language = 'en' | 'km';
 type Page = 'main' | 'language' | 'terms' | 'privacy' | 'help' | 'about';
-
-const translations = {
-  en: {
-    settings: 'Settings',
-    account: 'ACCOUNT',
-    securityCenter: 'Security Center',
-    preferences: 'PREFERENCES',
-    language: 'Language',
-    legalPolicies: 'LEGAL POLICIES',
-    termsOfUse: 'Terms of Use',
-    privacyPolicy: 'Privacy Policy',
-    helpAndSupport: 'HELP AND SUPPORT',
-    help: 'Help and Support',
-    aboutUs: 'About Us',
-    version: 'Version 1.0.2',
-    footer: '© 2023-2025 Digital Learning Center',
-    contactSupport: 'Contact Support',
-    faq: 'Frequently Asked Questions',
-    descTerms: 'Please read these terms and conditions carefully before using our service.',
-    descPrivacy: 'We value your privacy and are committed to protecting your personal data.',
-  },
-  km: {
-    settings: 'ការកំណត់',
-    account: 'គណនី',
-    securityCenter: 'មជ្ឈមណ្ឌលសុវត្ថិភាព',
-    preferences: 'ចំណូលចិត្ត',
-    language: 'ភាសា',
-    legalPolicies: 'គោលការណ៍ច្បាប់',
-    termsOfUse: 'លក្ខខណ្ឌប្រើប្រាស់',
-    privacyPolicy: 'គោលការណ៍ឯកជនភាព',
-    helpAndSupport: 'ជំនួយ និងការគាំទ្រ',
-    help: 'ជំនួយ និងការគាំទ្រ',
-    aboutUs: 'អំពីយើង',
-    version: 'ជំនាន់ 1.0.2',
-    footer: '© 2023-2025 Digital Learning Center',
-    contactSupport: 'ទាក់ទងជំនួយការ',
-    faq: 'សំណួរដែលសួរញឹកញាប់',
-    descTerms: 'សូមអានលក្ខខណ្ឌទាំងនេះដោយយកចិត្តទុកដាក់ មុនពេលប្រើប្រាស់សេវាកម្មរបស់យើង។',
-    descPrivacy: 'យើងផ្តល់តម្លៃចំពោះឯកជនភាពរបស់អ្នក និងប្តេជ្ញាការពារទិន្នន័យផ្ទាល់ខ្លួនរបស់អ្នក។',
-  }
-};
 
 interface SettingsProps {
   onBack: () => void;
@@ -58,37 +16,39 @@ interface SettingsProps {
 }
 
 export default function SettingsScreen({ onBack, isAuthenticated = true }: SettingsProps) {
-  const [lang, setLang] = useState<Language>('en'); // Default 'en'
+  const { language, setLanguage, t } = useLanguage();
   const [currentPage, setCurrentPage] = useState<Page>('main');
-  const [telegramConnected, setTelegramConnected] = useState(false);
-  const [loadingTelegram, setLoadingTelegram] = useState(false);
 
-  React.useEffect(() => {
-    if (isAuthenticated) {
-      api.get('/trpc/auth.me').then(res => {
-        if (res.data?.result?.data?.telegramChatId) {
-          setTelegramConnected(true);
+  // Mock State for Biometrics
+  const [biometricsEnabled, setBiometricsEnabled] = useState(false);
+
+  const isKhmer = language === 'km';
+
+  const handleLogout = async () => {
+    Alert.alert(
+      t('logout'),
+      t('confirmLogout'),
+      [
+        { text: t('cancel'), style: "cancel" },
+        {
+          text: t('yes'),
+          style: 'destructive',
+          onPress: async () => {
+            await logout();
+            onBack(); // Go back to welcome
+          }
         }
-      }).catch(err => console.log("Failed to fetch profile", err));
-    }
-  }, [isAuthenticated]);
-
-  const handleConnectTelegram = async () => {
-    if (telegramConnected) return;
-    setLoadingTelegram(true);
-    try {
-      const link = await generateTelegramLink();
-      Linking.openURL(link);
-    } catch (e) {
-      console.error("Failed to generate link", e);
-      alert("Failed to connect Telegram");
-    } finally {
-      setLoadingTelegram(false);
-    }
+      ]
+    );
   };
 
-  const t = translations[lang];
-  const isKhmer = lang === 'km';
+  const handleTelegramLink = () => {
+    // Replace with your actual Bot Username
+    const botUsername = "DigitalIdKhBot";
+    // In production, pass a unique token or phone number if needed for deep linking
+    // const startParam = "?start=link_account"; 
+    Linking.openURL(`https://t.me/${botUsername}`);
+  };
 
   // --- SUB-PAGES COMPONENTS ---
 
@@ -98,24 +58,24 @@ export default function SettingsScreen({ onBack, isAuthenticated = true }: Setti
       <View style={styles.card}>
         <TouchableOpacity
           style={[styles.menuItem, { borderBottomWidth: 1, borderBottomColor: '#f1f5f9' }]}
-          onPress={() => { setLang('en'); setCurrentPage('main'); }}
+          onPress={() => { setLanguage('en'); setCurrentPage('main'); }}
         >
           <View style={{ flexDirection: 'row', alignItems: 'center', gap: 12 }}>
             <Image source={{ uri: 'https://flagcdn.com/w40/gb.png' }} style={styles.flag} />
             <Text style={styles.menuText}>English</Text>
           </View>
-          {lang === 'en' && <Ionicons name="checkmark" size={24} color="#2563EB" />}
+          {language === 'en' && <Ionicons name="checkmark" size={24} color="#2563EB" />}
         </TouchableOpacity>
 
         <TouchableOpacity
           style={styles.menuItem}
-          onPress={() => { setLang('km'); setCurrentPage('main'); }}
+          onPress={() => { setLanguage('km'); setCurrentPage('main'); }}
         >
           <View style={{ flexDirection: 'row', alignItems: 'center', gap: 12 }}>
             <Image source={{ uri: 'https://flagcdn.com/w40/kh.png' }} style={styles.flag} />
             <Text style={[styles.menuText, { fontFamily: Platform.OS === 'ios' ? 'Khmer Sangam MN' : 'serif' }]}>ខ្មែរ</Text>
           </View>
-          {lang === 'km' && <Ionicons name="checkmark" size={24} color="#2563EB" />}
+          {language === 'km' && <Ionicons name="checkmark" size={24} color="#2563EB" />}
         </TouchableOpacity>
       </View>
     </View>
@@ -123,18 +83,12 @@ export default function SettingsScreen({ onBack, isAuthenticated = true }: Setti
 
   const renderTermsPage = () => (
     <ScrollView style={styles.subPageContainer}>
-      <Text style={styles.descText}>{t.descTerms}</Text>
+      <Text style={styles.descText}>{t('descTerms')}</Text>
       <View style={styles.cardContainer}>
         <View style={styles.card}>
           <View style={styles.cardContent}>
             <Text style={styles.cardTitle}>1. Acceptance of Terms</Text>
             <Text style={styles.cardBody}>By accessing and using Digital ID, you accept and agree to be bound by the terms and provision of this agreement.</Text>
-          </View>
-        </View>
-        <View style={styles.card}>
-          <View style={styles.cardContent}>
-            <Text style={styles.cardTitle}>2. Identity Verification</Text>
-            <Text style={styles.cardBody}>You are responsible for maintaining the confidentiality of your PIN and FaceID. Digital ID is not liable for unauthorized access.</Text>
           </View>
         </View>
       </View>
@@ -143,7 +97,7 @@ export default function SettingsScreen({ onBack, isAuthenticated = true }: Setti
 
   const renderHelpPage = () => (
     <ScrollView style={styles.subPageContainer}>
-      <Text style={styles.sectionHeader}>{t.contactSupport}</Text>
+      <Text style={styles.sectionHeader}>{t('contactSupport')}</Text>
       <View style={styles.card}>
         <TouchableOpacity style={[styles.menuItem, { borderBottomWidth: 1, borderBottomColor: '#f1f5f9' }]} onPress={() => Linking.openURL('tel:010284782')}>
           <View style={{ flexDirection: 'row', alignItems: 'center', gap: 15 }}>
@@ -156,29 +110,6 @@ export default function SettingsScreen({ onBack, isAuthenticated = true }: Setti
             </View>
           </View>
         </TouchableOpacity>
-        <TouchableOpacity style={styles.menuItem} onPress={() => Linking.openURL('mailto:digitalid@efi.mef.gov.kh')}>
-          <View style={{ flexDirection: 'row', alignItems: 'center', gap: 15 }}>
-            <View style={[styles.iconCircle, { backgroundColor: '#dbeafe' }]}>
-              <Ionicons name="mail" size={20} color="#2563eb" />
-            </View>
-            <View>
-              <Text style={styles.menuText}>Email Support</Text>
-              <Text style={styles.subText}>digitalid@efi.mef.gov.kh</Text>
-            </View>
-          </View>
-        </TouchableOpacity>
-      </View>
-
-      <Text style={[styles.sectionHeader, { marginTop: 20 }]}>{t.faq}</Text>
-      <View style={styles.card}>
-        <View style={styles.cardContent}>
-          <Text style={styles.cardTitle}>{lang === 'km' ? 'តើខ្ញុំអាចប្តូរលេខកូដ PIN យ៉ាងដូចម្តេច?' : 'How do I reset my PIN?'}</Text>
-          <Text style={styles.cardBody}>
-            {lang === 'km'
-              ? 'អ្នកអាចចូលទៅកាន់ "សុវត្ថិភាព" នៅក្នុងផ្ទាំងគ្រប់គ្រង ហើយជ្រើសរើស "ផ្លាស់ប្តូរលេខ PIN" ។'
-              : 'You can go to "Security" in the dashboard and select "Change PIN".'}
-          </Text>
-        </View>
       </View>
     </ScrollView>
   );
@@ -189,36 +120,20 @@ export default function SettingsScreen({ onBack, isAuthenticated = true }: Setti
         <Ionicons name="finger-print" size={48} color="#2563EB" />
       </View>
       <Text style={styles.appName}>Digital ID</Text>
-      <Text style={styles.version}>{t.version}</Text>
-
-      <View style={[styles.card, { width: '100%', marginTop: 30 }]}>
-        <View style={[styles.menuItem, { borderBottomWidth: 1, borderBottomColor: '#f1f5f9' }]}>
-          <Text style={styles.subText}>Developer</Text>
-          <Text style={styles.menuText}>Digital Learning Center</Text>
-        </View>
-        <View style={[styles.menuItem, { borderBottomWidth: 1, borderBottomColor: '#f1f5f9' }]}>
-          <Text style={styles.subText}>Website</Text>
-          <Text style={[styles.menuText, { color: '#2563EB' }]}>dlc-efi.mef.gov.kh</Text>
-        </View>
-        <View style={styles.menuItem}>
-          <Text style={styles.subText}>License</Text>
-          <Text style={styles.menuText}>Open Source (MIT)</Text>
-        </View>
-      </View>
-
-      <Text style={styles.footerText}>{t.footer}</Text>
+      <Text style={styles.version}>{t('version')}</Text>
+      <Text style={styles.footerText}>{t('footer')}</Text>
     </View>
   );
 
   // --- NAVIGATION HANDLER ---
   const getPageTitle = () => {
     switch (currentPage) {
-      case 'language': return t.language;
-      case 'terms': return t.termsOfUse;
-      case 'privacy': return t.privacyPolicy;
-      case 'help': return t.help;
-      case 'about': return t.aboutUs;
-      default: return t.settings;
+      case 'language': return t('language');
+      case 'terms': return t('termsOfUse');
+      case 'privacy': return t('privacyPolicy');
+      case 'help': return t('help');
+      case 'about': return t('aboutUs');
+      default: return t('settings');
     }
   };
 
@@ -248,55 +163,64 @@ export default function SettingsScreen({ onBack, isAuthenticated = true }: Setti
           {currentPage === 'main' ? (
             <ScrollView showsVerticalScrollIndicator={false}>
 
-              {/* Account Section (Only if Authenticated) */}
+              {/* Account Section */}
               {isAuthenticated && (
                 <>
-                  <Text style={styles.sectionHeader}>{t.account}</Text>
+                  <Text style={styles.sectionHeader}>{t('account')}</Text>
                   <View style={styles.card}>
-                    <TouchableOpacity style={styles.menuItem} onPress={() => Alert.alert("Coming Soon", "Security Center")}>
+                    {/* Change PIN */}
+                    <TouchableOpacity style={[styles.menuItem, { borderBottomWidth: 1, borderBottomColor: '#f1f5f9' }]} onPress={() => Alert.alert("Coming Soon", "Change PIN Feature")}>
                       <View style={{ flexDirection: 'row', alignItems: 'center', gap: 12 }}>
-                        <MaterialIcons name="security" size={22} color="#2563EB" />
-                        <Text style={styles.menuText}>{t.securityCenter}</Text>
+                        <MaterialIcons name="lock" size={22} color="#2563EB" />
+                        <Text style={styles.menuText}>{t('changePin')}</Text>
                       </View>
                       <Ionicons name="chevron-forward" size={20} color="#94a3b8" />
                     </TouchableOpacity>
 
-                    <View style={{ height: 1, backgroundColor: '#f1f5f9' }} />
-
-                    <TouchableOpacity style={styles.menuItem} onPress={handleConnectTelegram}>
+                    {/* Biometrics */}
+                    <View style={[styles.menuItem, { borderBottomWidth: 1, borderBottomColor: '#f1f5f9' }]}>
                       <View style={{ flexDirection: 'row', alignItems: 'center', gap: 12 }}>
-                        <FontAwesome5 name="telegram" size={20} color={telegramConnected ? "#16a34a" : "#2563EB"} />
-                        <View>
-                          <Text style={styles.menuText}>Telegram</Text>
-                          <Text style={[styles.subText, telegramConnected && { color: '#16a34a' }]}>
-                            {telegramConnected ? 'Connected' : 'Not Connected'}
-                          </Text>
-                        </View>
+                        <Ionicons name="finger-print" size={22} color="#2563EB" />
+                        <Text style={styles.menuText}>{t('biometrics')}</Text>
                       </View>
-                      {loadingTelegram ? (
-                        <ActivityIndicator size="small" color="#2563EB" />
-                      ) : telegramConnected ? (
-                        <Ionicons name="checkmark-circle" size={22} color="#16a34a" />
-                      ) : (
-                        <View style={{ flexDirection: 'row', alignItems: 'center' }}>
-                          <Text style={{ color: '#2563EB', fontSize: 13, fontWeight: '600', marginRight: 5 }}>Connect</Text>
-                          <Ionicons name="chevron-forward" size={20} color="#94a3b8" />
-                        </View>
-                      )}
+                      <Switch
+                        value={biometricsEnabled}
+                        onValueChange={setBiometricsEnabled}
+                        trackColor={{ false: '#e2e8f0', true: '#2563EB' }}
+                      />
+                    </View>
+
+                    {/* Telegram */}
+                    <TouchableOpacity style={styles.menuItem} onPress={handleTelegramLink}>
+                      <View style={{ flexDirection: 'row', alignItems: 'center', gap: 12 }}>
+                        <MaterialCommunityIcons name={"telegram" as any} size={22} color="#0088cc" />
+                        <Text style={styles.menuText}>{t('linkTelegram')}</Text>
+                      </View>
+                      <Ionicons name="open-outline" size={20} color="#94a3b8" />
+                    </TouchableOpacity>
+                  </View>
+
+                  {/* LOGOUT */}
+                  <View style={[styles.card, { marginTop: 20 }]}>
+                    <TouchableOpacity style={styles.menuItem} onPress={handleLogout}>
+                      <View style={{ flexDirection: 'row', alignItems: 'center', gap: 12 }}>
+                        <MaterialIcons name="logout" size={22} color="#ef4444" />
+                        <Text style={[styles.menuText, { color: '#ef4444' }]}>{t('logout')}</Text>
+                      </View>
                     </TouchableOpacity>
                   </View>
                 </>
               )}
 
               {/* Preferences */}
-              <Text style={styles.sectionHeader}>{t.preferences}</Text>
+              <Text style={styles.sectionHeader}>{t('preferences')}</Text>
               <View style={styles.card}>
                 <TouchableOpacity style={styles.menuItem} onPress={() => setCurrentPage('language')}>
                   <View style={{ flexDirection: 'row', alignItems: 'center', gap: 12 }}>
                     <MaterialIcons name="translate" size={22} color="#2563EB" />
                     <View>
-                      <Text style={styles.menuText}>{t.language}</Text>
-                      <Text style={styles.subText}>{lang === 'en' ? 'English' : 'ខ្មែរ'}</Text>
+                      <Text style={styles.menuText}>{t('language')}</Text>
+                      <Text style={styles.subText}>{language === 'en' ? 'English' : 'ខ្មែរ'}</Text>
                     </View>
                   </View>
                   <Ionicons name="chevron-forward" size={20} color="#94a3b8" />
@@ -304,31 +228,24 @@ export default function SettingsScreen({ onBack, isAuthenticated = true }: Setti
               </View>
 
               {/* Legal */}
-              <Text style={styles.sectionHeader}>{t.legalPolicies}</Text>
+              <Text style={styles.sectionHeader}>{t('legalPolicies')}</Text>
               <View style={styles.card}>
                 <TouchableOpacity style={[styles.menuItem, { borderBottomWidth: 1, borderBottomColor: '#f1f5f9' }]} onPress={() => setCurrentPage('terms')}>
                   <View style={{ flexDirection: 'row', alignItems: 'center', gap: 12 }}>
                     <MaterialIcons name="description" size={22} color="#2563EB" />
-                    <Text style={styles.menuText}>{t.termsOfUse}</Text>
-                  </View>
-                  <Ionicons name="chevron-forward" size={20} color="#94a3b8" />
-                </TouchableOpacity>
-                <TouchableOpacity style={styles.menuItem} onPress={() => setCurrentPage('privacy')}>
-                  <View style={{ flexDirection: 'row', alignItems: 'center', gap: 12 }}>
-                    <MaterialIcons name="privacy-tip" size={22} color="#2563EB" />
-                    <Text style={styles.menuText}>{t.privacyPolicy}</Text>
+                    <Text style={styles.menuText}>{t('termsOfUse')}</Text>
                   </View>
                   <Ionicons name="chevron-forward" size={20} color="#94a3b8" />
                 </TouchableOpacity>
               </View>
 
               {/* Help */}
-              <Text style={styles.sectionHeader}>{t.helpAndSupport}</Text>
+              <Text style={styles.sectionHeader}>{t('helpAndSupport')}</Text>
               <View style={styles.card}>
                 <TouchableOpacity style={[styles.menuItem, { borderBottomWidth: 1, borderBottomColor: '#f1f5f9' }]} onPress={() => setCurrentPage('help')}>
                   <View style={{ flexDirection: 'row', alignItems: 'center', gap: 12 }}>
                     <MaterialIcons name="help-outline" size={22} color="#2563EB" />
-                    <Text style={styles.menuText}>{t.help}</Text>
+                    <Text style={styles.menuText}>{t('help')}</Text>
                   </View>
                   <Ionicons name="chevron-forward" size={20} color="#94a3b8" />
                 </TouchableOpacity>
@@ -336,8 +253,8 @@ export default function SettingsScreen({ onBack, isAuthenticated = true }: Setti
                   <View style={{ flexDirection: 'row', alignItems: 'center', gap: 12 }}>
                     <MaterialIcons name="info-outline" size={22} color="#2563EB" />
                     <View>
-                      <Text style={styles.menuText}>{t.aboutUs}</Text>
-                      <Text style={styles.subText}>{t.version}</Text>
+                      <Text style={styles.menuText}>{t('aboutUs')}</Text>
+                      <Text style={styles.subText}>{t('version')}</Text>
                     </View>
                   </View>
                   <Ionicons name="chevron-forward" size={20} color="#94a3b8" />
@@ -346,7 +263,7 @@ export default function SettingsScreen({ onBack, isAuthenticated = true }: Setti
 
               <View style={{ height: 50 }} />
               <Text style={styles.footerText}>Digital ID</Text>
-              <Text style={[styles.footerText, { fontSize: 10, marginTop: 2 }]}>{t.footer}</Text>
+              <Text style={[styles.footerText, { fontSize: 10, marginTop: 2 }]}>{t('footer')}</Text>
               <View style={{ height: 50 }} />
 
             </ScrollView>
@@ -355,7 +272,7 @@ export default function SettingsScreen({ onBack, isAuthenticated = true }: Setti
             <View style={{ flex: 1 }}>
               {currentPage === 'language' && renderLanguagePage()}
               {currentPage === 'terms' && renderTermsPage()}
-              {currentPage === 'privacy' && renderTermsPage()} {/* Reusing Terms UI for Demo */}
+              {currentPage === 'privacy' && renderTermsPage()}
               {currentPage === 'help' && renderHelpPage()}
               {currentPage === 'about' && renderAboutPage()}
             </View>

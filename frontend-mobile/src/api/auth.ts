@@ -86,9 +86,3 @@ export async function authorizeDashboardSession(qrToken: string) {
   if (!res.data.success) throw new Error("Failed to authorize session");
 }
 
-/** TELEGRAM: Generate Link */
-export async function generateTelegramLink(): Promise<string> {
-  const res = await api.post("/auth/telegram/link");
-  return res.data.link;
-}
-

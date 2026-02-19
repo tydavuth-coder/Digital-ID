@@ -18,133 +18,43 @@ import {
 import { generatePDFReport, type ReportData } from "./reports";
 // ✅ IMPORT WEBSOCKET FUNCTIONS
 import { emitDashboardLoginSuccess, getIO } from "./websocket";
-import {
-  generateTelegramLinkToken,
-  generateRegistrationLink,
-  checkRegistrationStatus
-} from "./_core/telegram";
+import { sendTelegramMessage } from "./_core/telegram";
+import { sendTelegramMessage } from "./_core/telegram";
 import { sdk } from "./_core/sdk";
 
 const ONE_YEAR_MS = 365 * 24 * 60 * 60 * 1000;
-
-// Simple In-Memory OTP Store
-const otpStore = new Map<string, { code: string, expires: number }>();
-
-// Helper function to calculate next run time for scheduled reports
-function calculateNextRunTime(
-  frequency: string,
-  dayOfWeek?: number,
-  dayOfMonth?: number,
-  timeOfDay: string = "09:00"
-): Date {
-  const [hours, minutes] = timeOfDay.split(':').map(Number);
-  const now = new Date();
-  const next = new Date();
-  next.setHours(hours, minutes, 0, 0);
-
-  switch (frequency) {
-    case 'daily':
-      if (next <= now) {
-        next.setDate(next.getDate() + 1);
-      }
-      break;
-    case 'weekly':
-      const targetDay = dayOfWeek ?? 1; // Default to Monday
-      const currentDay = next.getDay();
-      let daysUntilTarget = targetDay - currentDay;
-      if (daysUntilTarget <= 0 || (daysUntilTarget === 0 && next <= now)) {
-        daysUntilTarget += 7;
-      }
-      next.setDate(next.getDate() + daysUntilTarget);
-      break;
-    case 'monthly':
-      const targetDate = dayOfMonth ?? 1; // Default to 1st
-      next.setDate(targetDate);
-      if (next <= now) {
-        next.setMonth(next.getMonth() + 1);
-      }
-      break;
-    case 'quarterly':
-      const currentMonth = next.getMonth();
-      const nextQuarterMonth = Math.ceil((currentMonth + 1) / 3) * 3;
-      next.setMonth(nextQuarterMonth);
-      next.setDate(dayOfMonth ?? 1);
-      if (next <= now) {
-        next.setMonth(next.getMonth() + 3);
-      }
-      break;
-  }
-
-  return next;
-}
-
-// Admin-only procedure
-const adminProcedure = protectedProcedure.use(({ ctx, next }) => {
-  if (ctx.user.role !== 'admin' && ctx.user.role !== 'super_admin' && ctx.user.role !== 'system_admin') {
-    throw new TRPCError({ code: 'FORBIDDEN', message: 'Admin access required' });
-  }
-  return next({ ctx });
-});
-
 export const appRouter = router({
-  system: systemRouter,
-
   auth: router({
-    me: publicProcedure.query(opts => opts.ctx.user),
-    logout: publicProcedure.mutation(({ ctx }) => {
-      const cookieOptions = getSessionCookieOptions(ctx.req);
-      ctx.res.clearCookie(COOKIE_NAME, { ...cookieOptions, maxAge: -1 });
-      return { success: true } as const;
-    }),
-
-    // ✅ UPDATE PROFILE
-    updateProfile: protectedProcedure.input(z.object({
-      nameEn: z.string().optional(),
-      nameKh: z.string().optional(),
-      phone: z.string().optional(),
-      email: z.string().email().optional(),
-      address: z.string().optional(),
-      photoUrl: z.string().optional(),
-    })).mutation(async ({ input, ctx }) => {
-      const updatedUser = await db.updateUser(ctx.user.id, {
-        nameEnglish: input.nameEn,
-        nameKhmer: input.nameKh,
-        phoneNumber: input.phone,
-        email: input.email,
-        address: input.address,
-        photoUrl: input.photoUrl
-      });
-
-      return { success: true, user: updatedUser };
-    }),
-
-    // ✅ PUBLIC KYC SUBMISSION (Accessible without login)
     submitKYC: publicProcedure.input(z.object({
-      phoneNumber: z.string().optional(), // ✅ Add Phone Number
-      nameKh: z.string().optional(),
-      nameEn: z.string().optional(),
-      gender: z.enum(["male", "female", "other"]).optional(),
-      idNumber: z.string().optional(),
-      dob: z.string().optional(),
-      pob: z.string().optional(),
-      address: z.string().optional(),
-      expiryDate: z.string().optional(),
-      frontImage: z.string().optional(),
-      backImage: z.string().optional(),
-      selfieImage: z.string().optional(),
-      telegramChatId: z.string().optional(),
-    })).mutation(async ({ input }) => {
+      nameEn: z.string(),
+      nameKh: z.string(),
+      phoneNumber: z.string(),
+      idNumber: z.string(),
+      gender: z.enum(["male", "female", "other"]).or(z.string()),
+      address: z.string(),
+      frontImage: z.string(),
+      backImage: z.string(),
+      selfieImage: z.string(),
+    })).mutation(async ({ input, ctx }) => {
       try {
-        const openId = `user_${nanoid(10)}`;
+        const openId = `verify_${nanoid(16)}`;
 
         // 1. Create User (Pending)
-        const createdUser = await db.upsertUser({
+        await db.upsertUser({
+
           openId: openId,
           name: input.nameEn,
           phoneNumber: input.phoneNumber, // ✅ Save Phone Number
-          email: `temp_${nanoid(5)}@digitalid.local`,
-          telegramChatId: input.telegramChatId // ✅ Save Telegram Chat ID
+          email: `temp_${nanoid(5)}@digitalid.local`
         });
+
+        const createdUser = await db.getUserByOpenId(openId);
+        if (!createdUser) {
+          throw new TRPCError({
+            code: 'INTERNAL_SERVER_ERROR',
+            message: 'Failed to create user in database'
+          });
+        }
 
         // 2. Update Details
         await db.updateUser(createdUser.id, {
@@ -191,7 +101,24 @@ export const appRouter = router({
           console.log("WebSocket notification warning:", e);
         }
 
-        return { success: true, userId: newUserId };
+
+
+        // 6. Auto-Login (Create Session)
+        const sessionToken = await sdk.createSessionToken(createdUser.openId, {
+          name: createdUser.nameEnglish || createdUser.name || "User",
+          expiresInMs: ONE_YEAR_MS,
+        });
+
+        // Set Cookie for Web Context (if used)
+        const cookieOptions = getSessionCookieOptions(ctx.req);
+        ctx.res.cookie(COOKIE_NAME, sessionToken, { ...cookieOptions, maxAge: ONE_YEAR_MS });
+
+        return {
+          success: true,
+          userId: newUserId,
+          accessToken: sessionToken,
+          user: createdUser
+        };
 
       } catch (error) {
         console.error("KYC Submit Error:", error);
@@ -202,177 +129,165 @@ export const appRouter = router({
       }
     }),
 
-    // ✅ PIN LOGIN
-    pin: router({
-      login: publicProcedure.input(z.object({
-        phone: z.string(),
-        pin: z.string(),
-      })).mutation(async ({ input, ctx }) => {
-        const user = await db.getUserByPhone(input.phone);
-
-        if (!user || !user.pin) {
-          throw new TRPCError({ code: 'UNAUTHORIZED', message: 'Invalid credentials' });
-        }
-
-        // In a real app, you should compare HASHED pins.
-        // For this demo (and since we don't have crypto lib imported yet), we do direct comparison.
-        // Assuming the mobile app or backend stores it as is for now.
-        if (user.pin !== input.pin) {
-          throw new TRPCError({ code: 'UNAUTHORIZED', message: 'Invalid credentials' });
-        }
-
-        // Create session
-        const sessionToken = await sdk.createSessionToken(user.openId, {
-          name: user.name || "User",
-          expiresInMs: ONE_YEAR_MS,
-        });
-
-        const cookieOptions = getSessionCookieOptions(ctx.req);
-        ctx.res.cookie(COOKIE_NAME, sessionToken, { ...cookieOptions, maxAge: ONE_YEAR_MS });
-
-        // also return tokens for mobile app
-        return {
-          success: true,
-          accessToken: sessionToken,
-          refreshToken: nanoid(32), // Mock refresh token
-          user: {
-            id: user.id.toString(),
-            nameEn: user.nameEnglish,
-            nameKh: user.nameKhmer,
-            email: user.email,
-            phone: user.phoneNumber,
-            status: user.status
-          }
-        };
-      }),
-    }),
-
-    // ✅ RECOVERY
-    recovery: router({
-      "send-otp": publicProcedure.input(z.object({
-        phone: z.string(),
-        channel: z.enum(["telegram", "sms"]).optional(),
-      })).mutation(async ({ input }) => {
-        const user = await db.getUserByPhone(input.phone);
-        if (!user) {
-          // Don't reveal user existence, but for now we just return success
-          return { success: true, message: "OTP sent" };
-        }
-
-        if (!user.telegramChatId) {
-          console.log(`[Recovery] User ${input.phone} has no linked Telegram Chat ID.`);
-          // In production, we might fall back to SMS or return an error if SMS is not configured.
-          // For now, fail silently or with a specific message not revealed to client strictly? 
-          // Let's Log it.
-          return { success: false, message: "No linked Telegram account found." };
-        }
-
-        // Generate 6-digit OTP
-        const otp = Math.floor(100000 + Math.random() * 900000).toString();
-        // DEV DEBUG: Log OTP to console for testing
-        console.log(`[Recovery] Generated OTP for ${input.phone}: ${otp}`);
-
-        // Store in Memory (Expires in 5 minutes)
-        otpStore.set(input.phone, {
-          code: otp,
-          expires: Date.now() + 5 * 60 * 1000
-        });
-
-        // Send via Telegram
-        const sent = await sendTelegramMessage(user.telegramChatId, `🔐 Your Recovery OTP is: *${otp}*\n\nValid for 5 minutes.`);
-
-        if (sent) {
-          console.log(`[Recovery] OTP sent to ${user.telegramChatId} for ${input.phone}`);
-          return { success: true, message: "OTP sent" };
-        } else {
-          return { success: false, message: "Failed to send OTP via Telegram" };
-        }
-      }),
-
-      "verify-otp": publicProcedure.input(z.object({
-        phone: z.string(),
-        otp: z.string(),
-      })).mutation(async ({ input }) => {
-        const stored = otpStore.get(input.phone);
-
-        if (!stored) {
-          throw new TRPCError({ code: 'BAD_REQUEST', message: 'OTP expired or not found' });
-        }
-
-        if (Date.now() > stored.expires) {
-          otpStore.delete(input.phone);
-          throw new TRPCError({ code: 'BAD_REQUEST', message: 'OTP expired' });
-        }
-
-        if (stored.code !== input.otp) {
-          throw new TRPCError({ code: 'BAD_REQUEST', message: 'Invalid OTP' });
-        }
-
-        // Consume OTP
-        otpStore.delete(input.phone);
-
-        const user = await db.getUserByPhone(input.phone);
-        if (!user) {
-          throw new TRPCError({ code: 'NOT_FOUND', message: 'User not found' });
-        }
-
-        // Generate recovery token
-        const recoveryToken = nanoid(32);
-        await db.updateUser(user.id, { recoveryToken });
-
-        return { success: true, recoveryToken };
-      }),
-
-      "reset-pin": publicProcedure.input(z.object({
-        recoveryToken: z.string(),
-        newPin: z.string().length(6),
-      })).mutation(async ({ input, ctx }) => {
-        const user = await db.getUserByRecoveryToken(input.recoveryToken);
-        if (!user) {
-          throw new TRPCError({ code: 'BAD_REQUEST', message: 'Invalid recovery token' });
-        }
-
-        await db.updateUser(user.id, {
-          pin: input.newPin,
-          recoveryToken: null // Consume token
-        });
-
-        // Login user
-        const sessionToken = await sdk.createSessionToken(user.openId, {
-          name: user.name || "User",
-          expiresInMs: ONE_YEAR_MS,
-        });
-
-        return {
-          success: true,
-          accessToken: sessionToken,
-          refreshToken: nanoid(32)
-        };
-      }),
-    }),
-
-    // ✅ TELEGRAM LINKING
-    telegram: router({
-      generateLink: protectedProcedure.mutation(async ({ ctx }) => {
-        const link = await generateTelegramLinkToken(ctx.user.id);
-        return { success: true, link };
-      }),
-
-      generateRegistrationLink: publicProcedure.input(z.object({
-        sessionId: z.string()
-      })).mutation(async ({ input }) => {
-        const link = await generateRegistrationLink(input.sessionId);
-        return { success: true, link };
-      }),
-
-      checkRegistrationStatus: publicProcedure.input(z.object({
-        sessionId: z.string()
-      })).mutation(async ({ input }) => {
-        const chatId = checkRegistrationStatus(input.sessionId);
-        return { success: true, chatId };
-      }),
+    // ✅ GET CURRENT USER
+    me: protectedProcedure.query(async ({ ctx }) => {
+      const user = await db.getUserById(ctx.user.id);
+      if (!user) {
+        throw new TRPCError({ code: "NOT_FOUND", message: "User not found" });
+      }
+      return user;
     }),
   }),
+
+  // ✅ PIN LOGIN
+  pin: router({
+    login: publicProcedure.input(z.object({
+      phone: z.string(),
+      pin: z.string(),
+    })).mutation(async ({ input, ctx }) => {
+      const user = await db.getUserByPhone(input.phone);
+
+      if (!user || !user.pin) {
+        throw new TRPCError({ code: 'UNAUTHORIZED', message: 'Invalid credentials' });
+      }
+
+      // In a real app, you should compare HASHED pins.
+      // For this demo (and since we don't have crypto lib imported yet), we do direct comparison.
+      // Assuming the mobile app or backend stores it as is for now.
+      if (user.pin !== input.pin) {
+        throw new TRPCError({ code: 'UNAUTHORIZED', message: 'Invalid credentials' });
+      }
+
+      // Create session
+      const sessionToken = await sdk.createSessionToken(user.openId, {
+        name: user.name || "User",
+        expiresInMs: ONE_YEAR_MS,
+      });
+
+      const cookieOptions = getSessionCookieOptions(ctx.req);
+      ctx.res.cookie(COOKIE_NAME, sessionToken, { ...cookieOptions, maxAge: ONE_YEAR_MS });
+
+      // also return tokens for mobile app
+      return {
+        success: true,
+        accessToken: sessionToken,
+        refreshToken: nanoid(32), // Mock refresh token
+        user: {
+          id: user.id.toString(),
+          nameEn: user.nameEnglish,
+          nameKh: user.nameKhmer,
+          email: user.email,
+          phone: user.phoneNumber,
+          status: user.status
+        }
+      };
+    }),
+  }),
+
+  // ✅ RECOVERY
+  recovery: router({
+    "send-otp": publicProcedure.input(z.object({
+      phone: z.string(),
+      channel: z.enum(["telegram", "sms"]).optional(),
+    })).mutation(async ({ input }) => {
+      const user = await db.getUserByPhone(input.phone);
+      if (!user) {
+        // Don't reveal user existence, but for now we just return success
+        return { success: true, message: "OTP sent" };
+      }
+
+      if (!user.telegramChatId) {
+        console.log(`[Recovery] User ${input.phone} has no linked Telegram Chat ID.`);
+        // In production, we might fall back to SMS or return an error if SMS is not configured.
+        // For now, fail silently or with a specific message not revealed to client strictly? 
+        // Let's Log it.
+        return { success: false, message: "No linked Telegram account found." };
+      }
+
+      // Generate 6-digit OTP
+      const otp = Math.floor(100000 + Math.random() * 900000).toString();
+      // DEV DEBUG: Log OTP to console for testing
+      console.log(`[Recovery] Generated OTP for ${input.phone}: ${otp}`);
+
+      // Store in Memory (Expires in 5 minutes)
+      otpStore.set(input.phone, {
+        code: otp,
+        expires: Date.now() + 5 * 60 * 1000
+      });
+
+      // Send via Telegram
+      const sent = await sendTelegramMessage(user.telegramChatId, `🔐 Your Recovery OTP is: *${otp}*\n\nValid for 5 minutes.`);
+
+      if (sent) {
+        console.log(`[Recovery] OTP sent to ${user.telegramChatId} for ${input.phone}`);
+        return { success: true, message: "OTP sent" };
+      } else {
+        return { success: false, message: "Failed to send OTP via Telegram" };
+      }
+    }),
+
+    "verify-otp": publicProcedure.input(z.object({
+      phone: z.string(),
+      otp: z.string(),
+    })).mutation(async ({ input }) => {
+      const stored = otpStore.get(input.phone);
+
+      if (!stored) {
+        throw new TRPCError({ code: 'BAD_REQUEST', message: 'OTP expired or not found' });
+      }
+
+      if (Date.now() > stored.expires) {
+        otpStore.delete(input.phone);
+        throw new TRPCError({ code: 'BAD_REQUEST', message: 'OTP expired' });
+      }
+
+      if (stored.code !== input.otp) {
+        throw new TRPCError({ code: 'BAD_REQUEST', message: 'Invalid OTP' });
+      }
+
+      // Consume OTP
+      otpStore.delete(input.phone);
+
+      const user = await db.getUserByPhone(input.phone);
+      if (!user) {
+        throw new TRPCError({ code: 'NOT_FOUND', message: 'User not found' });
+      }
+
+      // Generate recovery token
+      const recoveryToken = nanoid(32);
+      await db.updateUser(user.id, { recoveryToken });
+
+      return { success: true, recoveryToken };
+    }),
+
+    "reset-pin": publicProcedure.input(z.object({
+      recoveryToken: z.string(),
+      newPin: z.string().length(6),
+    })).mutation(async ({ input, ctx }) => {
+      const user = await db.getUserByRecoveryToken(input.recoveryToken);
+      if (!user) {
+        throw new TRPCError({ code: 'BAD_REQUEST', message: 'Invalid recovery token' });
+      }
+
+      await db.updateUser(user.id, {
+        pin: input.newPin,
+        recoveryToken: null // Consume token
+      });
+
+      // Login user
+      const sessionToken = await sdk.createSessionToken(user.openId, {
+        name: user.name || "User",
+        expiresInMs: ONE_YEAR_MS,
+      });
+
+      return {
+        success: true,
+        accessToken: sessionToken,
+        refreshToken: nanoid(32)
+      };
+    }),
+  }),
+
 
   // ============= MOBILE APP SYNC (SCAN QR LOGIN) =============
   mobile: router({
@@ -457,8 +372,6 @@ export const appRouter = router({
         email: z.string().email().optional(),
         phoneNumber: z.string().optional(),
         gender: z.enum(["male", "female", "other"]).optional(),
-        dob: z.string().optional(),
-        pob: z.string().optional(),
         address: z.string().optional(),
         status: z.enum(["active", "pending", "blocked"]).optional(),
         photoUrl: z.string().optional(),

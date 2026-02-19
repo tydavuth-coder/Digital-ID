@@ -7,13 +7,23 @@ import { Ionicons } from '@expo/vector-icons';
 
 import SyncScreen from './src/screens/SyncScreen';
 import RegisterScreen from './src/screens/RegisterScreen';
-// import RegisterScreen from './src/screens/DebugRegisterScreen'; // DEBUG SWAP
 import RecoveryScreen from './src/screens/RecoveryScreen';
 import DashboardScreen from './src/screens/DashboardScreen';
 import EditProfileScreen from './src/screens/EditProfileScreen';
 import SettingsScreen from './src/screens/SettingsScreen';
 
+import { LanguageProvider } from './src/context/LanguageContext';
+
 export default function App() {
+  return (
+    <LanguageProvider>
+      <MainApp />
+    </LanguageProvider>
+  );
+}
+
+function MainApp() {
+
   const [currentScreen, setCurrentScreen] = useState<'welcome' | 'register' | 'recovery' | 'dashboard' | 'scan' | 'edit_profile' | 'settings'>('welcome');
   const [previousScreen, setPreviousScreen] = useState<'welcome' | 'dashboard'>('welcome');
 

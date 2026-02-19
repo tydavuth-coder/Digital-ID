@@ -46,6 +46,12 @@
       ],
       "expo-asset",
       "expo-font"
-    ]
+    ],
+    "extra": {
+      "eas": {
+        "projectId": "2741ac58-4e71-482a-bf50-d4b817f9fbe1"
+      }
+    },
+    "owner": "tydavuth"
   }
 }

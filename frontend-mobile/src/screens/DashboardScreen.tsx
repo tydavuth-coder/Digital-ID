@@ -60,18 +60,27 @@ export default function DashboardScreen({ onScanPress, onLogout, onEditProfile, 
   const fetchUserProfile = async () => {
     try {
       setLoading(true);
-      // TRPC Query via GET usually: /api/trpc/auth.me?batch=1&input={} or just /api/trpc/auth.me
-      // Simply trying standard GET to see if it works with current setup
+
+      // ✅ Fetch latest profile from backend
       const res = await api.get('/trpc/auth.me');
+
       if (res.data && res.data.result && res.data.result.data) {
         const u = res.data.result.data;
         setFetchedUser(u);
+
+        // ✅ Determine Status Display
+        let displayStatus = "Pending Verification";
+        if (u.kycStatus === 'approved') displayStatus = "Digitally Verified";
+        else if (u.kycStatus === 'rejected') displayStatus = "Application Rejected";
+
         setProfile(prev => ({
           ...prev,
           name: u.nameEnglish || u.name || prev.name,
           id: u.nationalId || prev.id,
           avatar: u.photoUrl || prev.avatar,
-          status: u.status === 'active' ? "Digitally Verified" : "Pending Verification",
+          status: displayStatus,
+          // ✅ Ensure we show the correct validity
+          validUntil: "Dec 2028",
           email: u.email || prev.email,
           phone: u.phoneNumber || prev.phone,
           address: u.address || prev.address
@@ -142,7 +151,11 @@ export default function DashboardScreen({ onScanPress, onLogout, onEditProfile, 
             <View>
               <Text style={styles.footerLabel}>STATUS</Text>
               <View style={styles.statusRow}>
-                <MaterialIcons name="verified" size={16} color="#4ade80" />
+                <MaterialIcons
+                  name={profile.status === "Digitally Verified" ? "verified" : "hourglass-empty"}
+                  size={16}
+                  color={profile.status === "Digitally Verified" ? "#4ade80" : "#fbbf24"}
+                />
                 <Text style={styles.statusValue}>{profile.status}</Text>
               </View>
             </View>

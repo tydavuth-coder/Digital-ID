@@ -30,7 +30,7 @@ export async function getDb() {
 
 // ============= USER MANAGEMENT =============
 
-export async function upsertUser(user: InsertUser) {
+export async function upsertUser(user: InsertUser): Promise<void> {
   if (!user.openId) {
     throw new Error("User openId is required for upsert");
   }
@@ -120,8 +120,6 @@ export async function upsertUser(user: InsertUser) {
     await db.insert(users).values(values).onDuplicateKeyUpdate({
       set: updateSet,
     });
-
-    return await getUserByOpenId(user.openId);
   } catch (error) {
     console.error("[Database] Failed to upsert user:", error);
     throw error;
@@ -556,6 +554,9 @@ export async function createActiveSession(data: {
   ipAddress?: string;
   expiresAt: Date;
 }) {
+  const db = await getDb();
+  if (!db) return null;
+
   const [result] = await db.insert(activeSessions).values({
     userId: data.userId,
     sessionToken: data.sessionToken,

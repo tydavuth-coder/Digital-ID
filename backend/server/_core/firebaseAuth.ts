@@ -46,10 +46,9 @@ export function registerFirebaseAuthRoutes(app: Express) {
       });
 
       res.json({ success: true });
-    } catch (e: any) {
+    } catch (e) {
       console.error("[FirebaseAuth] session failed:", e);
-      // Return specific error for debugging
-      res.status(401).json({ error: `Login Failed: ${e.message || e}` });
+      res.status(401).json({ error: "Invalid Firebase token" });
     }
   });
 }

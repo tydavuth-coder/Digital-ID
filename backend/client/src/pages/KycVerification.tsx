@@ -24,12 +24,12 @@ import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { trpc } from "@/lib/trpc";
-import {
-  FileCheck,
-  X,
-  Check,
-  ZoomIn,
-  ZoomOut,
+import { 
+  FileCheck, 
+  X, 
+  Check, 
+  ZoomIn, 
+  ZoomOut, 
   RotateCw,
   Download,
   AlertCircle,
@@ -261,8 +261,8 @@ export default function KycVerification() {
                   </TableHeader>
                   <TableBody>
                     {kycList?.map((item) => (
-                      <TableRow
-                        key={item.kycDoc.id}
+                      <TableRow 
+                        key={item.kycDoc.id} 
                         className={selectedKycs.has(item.kycDoc.id) ? "bg-muted/50" : "hover:bg-muted/50"}
                       >
                         <TableCell>
@@ -288,14 +288,7 @@ export default function KycVerification() {
                           </code>
                         </TableCell>
                         <TableCell className="text-sm text-muted-foreground">
-                          {(() => {
-                            try {
-                              const date = new Date(item.kycDoc.createdAt);
-                              return isNaN(date.getTime()) ? '-' : format(date, "MMM d, yyyy");
-                            } catch (e) {
-                              return '-';
-                            }
-                          })()}
+                          {format(new Date(item.kycDoc.createdAt), "MMM d, yyyy")}
                         </TableCell>
                         <TableCell>
                           <div className="flex gap-2">
@@ -333,14 +326,14 @@ export default function KycVerification() {
                 </code>
               </DialogDescription>
             </DialogHeader>
-
+            
             <Tabs defaultValue="front" className="w-full">
               <TabsList className="grid w-full grid-cols-3">
                 <TabsTrigger value="front">NID Front</TabsTrigger>
                 <TabsTrigger value="back">NID Back</TabsTrigger>
                 <TabsTrigger value="selfie">Selfie with ID</TabsTrigger>
               </TabsList>
-
+              
               <TabsContent value="front" className="space-y-4">
                 <Card>
                   <CardHeader>
@@ -357,7 +350,7 @@ export default function KycVerification() {
                     </div>
                   </CardHeader>
                   <CardContent>
-                    <div
+                    <div 
                       className="border rounded-lg overflow-hidden cursor-zoom-in hover:shadow-lg transition-shadow"
                       onClick={() => handleZoomImage(viewingKyc?.kycDoc.nidFrontUrl)}
                     >
@@ -374,7 +367,7 @@ export default function KycVerification() {
                   </CardContent>
                 </Card>
               </TabsContent>
-
+              
               <TabsContent value="back" className="space-y-4">
                 <Card>
                   <CardHeader>
@@ -391,7 +384,7 @@ export default function KycVerification() {
                     </div>
                   </CardHeader>
                   <CardContent>
-                    <div
+                    <div 
                       className="border rounded-lg overflow-hidden cursor-zoom-in hover:shadow-lg transition-shadow"
                       onClick={() => handleZoomImage(viewingKyc?.kycDoc.nidBackUrl)}
                     >
@@ -408,7 +401,7 @@ export default function KycVerification() {
                   </CardContent>
                 </Card>
               </TabsContent>
-
+              
               <TabsContent value="selfie" className="space-y-4">
                 <Card>
                   <CardHeader>
@@ -425,7 +418,7 @@ export default function KycVerification() {
                     </div>
                   </CardHeader>
                   <CardContent>
-                    <div
+                    <div 
                       className="border rounded-lg overflow-hidden cursor-zoom-in hover:shadow-lg transition-shadow"
                       onClick={() => handleZoomImage(viewingKyc?.kycDoc.selfieUrl)}
                     >
@@ -542,7 +535,7 @@ export default function KycVerification() {
                 {rejectingKycId === -1 ? `Reject ${selectedKycs.size} KYC Documents` : t('kyc.rejectKyc')}
               </DialogTitle>
               <DialogDescription>
-                {rejectingKycId === -1
+                {rejectingKycId === -1 
                   ? 'This will reject all selected KYC documents with the same reason'
                   : t('kyc.rejectionReason')}
               </DialogDescription>

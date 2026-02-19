@@ -105,8 +105,3 @@ temp/
 *.db
 *.sqlite
 *.sqlite3
-
-# Firebase/Google Cloud
-service-account.json
-firebase-key.json
-*.local.json
